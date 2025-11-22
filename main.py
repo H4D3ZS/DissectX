@@ -87,6 +87,17 @@ def main():
         metavar='FILE',
         help='💾 Save output to file instead of displaying'
     )
+    parser.add_argument(
+        '--unlimited',
+        action='store_true',
+        help='🔓 Remove 1000-line limit for complete output (generates very large files)'
+    )
+    parser.add_argument(
+        '--function', '-f',
+        type=str,
+        metavar='NAME',
+        help='🎯 Analyze only a specific function (e.g., --function malloc or --function main)'
+    )
     
     # Advanced options (hidden from main help)
     advanced = parser.add_argument_group('⚙️  Advanced Options')
@@ -228,7 +239,7 @@ def main():
                         if not args.output:
                             # Generate output filename based on input
                             input_path = Path(args.file)
-                            args.output = f"{input_path.stem}_analysis.txt"
+                            args.output = f"{input_path.stem}_analysis.md"
                             print(f"💾 Large output detected - saving to: {args.output}", file=sys.stderr)
                         
                         # Override file argument to use disassembly
@@ -262,6 +273,7 @@ def main():
         # Step 4: Translate instructions
         translator = InstructionTranslator()
         translations = [translator.translate(instr) for instr in instructions]
+        pseudocode = [translator.translate_to_pseudocode(instr) for instr in instructions]
         
         # Step 5: Highlight security operations
         security_highlighter = SecurityHighlighter()
@@ -279,17 +291,36 @@ def main():
         advanced_detector = AdvancedDetector()
         advanced_analysis = advanced_detector.analyze_advanced_techniques(instructions)
         advanced_report = advanced_detector.format_advanced_report(advanced_analysis)
-        
-        # Step 6: Format output
+        # 5. Format Output
+        print("💾 Formatting analysis report (Markdown)...")
+
+        # Determine max_lines based on --unlimited flag
+        max_lines = None if args.unlimited else 1000
+
+        # Filter to specific function if requested
+        target_function = args.function if hasattr(args, 'function') else None
+
         formatter = OutputFormatter()
-        output = formatter.format(instructions, blocks, translations, security_highlights)
-        
-        # Prepend advanced protection report if detected
-        if advanced_report:
-            output = advanced_report + output
-        
-        # Step 7: Write output
-        write_output(output, args.output)
+        report = formatter.format(
+            instructions,
+            blocks,
+            translations,
+            pseudocode,
+            security_highlights=security_highlights,
+            max_lines=max_lines,
+            target_function=target_function
+        )
+
+        if args.output:
+            output_file = args.output
+        else:
+            # Use args.file instead of args.binary_file (which doesn't exist)
+            output_file = args.file.rsplit('.', 1)[0] + "_analysis.md"
+
+        with open(output_file, 'w') as f:
+            f.write(report)
+
+        print(f"✅ Analysis report written to {output_file}")
         
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)

@@ -358,6 +358,94 @@ class InstructionTranslator:
         else:
             # Unknown instruction - provide best-effort translation
             return self._translate_unknown(instruction)
+
+    def translate_to_pseudocode(self, instruction: Instruction) -> str:
+        """
+        Translate instruction to C-like pseudo-code.
+        
+        Args:
+            instruction: Instruction object
+            
+        Returns:
+            Pseudo-code string (e.g., "eax = 1;")
+        """
+        mnemonic = instruction.mnemonic.lower()
+        operands = instruction.get_parsed_operands()
+        
+        # Helper to get operand string
+        def op_str(idx):
+            if idx < len(operands):
+                # Clean up operand (remove size directives like 'DWORD PTR')
+                op = operands[idx].raw
+                op = re.sub(r'(?:BYTE|WORD|DWORD|QWORD|XMMWORD|YMMWORD)\s+PTR\s+', '', op, flags=re.IGNORECASE)
+                return op
+            return "?"
+
+        # Data Movement
+        if mnemonic in ['mov', 'movabs', 'movq', 'movd', 'movss', 'movsd']:
+            return f"{op_str(0)} = {op_str(1)};"
+        elif mnemonic == 'lea':
+            return f"{op_str(0)} = &{op_str(1)};"
+        elif mnemonic == 'xor':
+            if len(operands) == 2 and operands[0].raw == operands[1].raw:
+                return f"{op_str(0)} = 0;"
+            return f"{op_str(0)} ^= {op_str(1)};"
+        
+        # Arithmetic
+        elif mnemonic == 'add':
+            return f"{op_str(0)} += {op_str(1)};"
+        elif mnemonic == 'sub':
+            return f"{op_str(0)} -= {op_str(1)};"
+        elif mnemonic == 'inc':
+            return f"{op_str(0)}++;"
+        elif mnemonic == 'dec':
+            return f"{op_str(0)}--;"
+        elif mnemonic == 'imul':
+            if len(operands) == 1:
+                return f"rax *= {op_str(0)};"
+            elif len(operands) == 2:
+                return f"{op_str(0)} *= {op_str(1)};"
+            elif len(operands) == 3:
+                return f"{op_str(0)} = {op_str(1)} * {op_str(2)};"
+        elif mnemonic in ['and', 'or']:
+            op = '&=' if mnemonic == 'and' else '|='
+            return f"{op_str(0)} {op} {op_str(1)};"
+            
+        # Comparison
+        elif mnemonic == 'cmp':
+            return f"// Compare {op_str(0)} vs {op_str(1)}"
+        elif mnemonic == 'test':
+            return f"// Test {op_str(0)} & {op_str(1)}"
+            
+        # Control Flow
+        elif mnemonic == 'jmp':
+            return f"goto {op_str(0)};"
+        elif mnemonic == 'je' or mnemonic == 'jz':
+            return f"if (==) goto {op_str(0)};"
+        elif mnemonic == 'jne' or mnemonic == 'jnz':
+            return f"if (!=) goto {op_str(0)};"
+        elif mnemonic == 'jg':
+            return f"if (>) goto {op_str(0)};"
+        elif mnemonic == 'jge':
+            return f"if (>=) goto {op_str(0)};"
+        elif mnemonic == 'jl':
+            return f"if (<) goto {op_str(0)};"
+        elif mnemonic == 'jle':
+            return f"if (<=) goto {op_str(0)};"
+            
+        # Function Calls
+        elif mnemonic == 'call':
+            return f"{op_str(0)}();"
+        elif mnemonic == 'ret':
+            return "return;"
+            
+        # Stack
+        elif mnemonic == 'push':
+            return f"push({op_str(0)});"
+        elif mnemonic == 'pop':
+            return f"{op_str(0)} = pop();"
+            
+        return ""
     
     def translate_mov(self, instruction: Instruction) -> str:
         """
