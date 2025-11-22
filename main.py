@@ -101,16 +101,85 @@ def main():
         help='Disable automatic binary detection'
     )
     
+    # Advanced Analysis Flags
+    parser.add_argument("--advanced", action="store_true", help="Enable advanced analysis (syscalls, API hashing, junk code)")
+    parser.add_argument("--detect-syscalls", action="store_true", help="Detect direct syscall stubs")
+    parser.add_argument("--resolve-hashes", action="store_true", help="Resolve API hashes")
+    parser.add_argument("--detect-junk", action="store_true", help="Detect junk code and anti-analysis")
+    
+    # New Features
+    parser.add_argument("--emulate", action="store_true", help="Enable Unicorn emulation for dynamic analysis")
+    parser.add_argument("--decrypt-strings", action="store_true", help="Attempt to decrypt strings (XOR/Stack)")
+    parser.add_argument("--memory-dump", type=str, help="Analyze a memory dump file")
+    parser.add_argument("--generate-dump", type=str, help="Run binary in emulator and generate memory dump")
+    
     args = parser.parse_args()
     
     try:
         # Check if we have input
-        if not args.file and not args.interactive and sys.stdin.isatty():
+        if not args.file and not args.interactive and not args.memory_dump and not args.generate_dump and sys.stdin.isatty():
             parser.print_help()
             print("\n❌ Error: No input provided", file=sys.stderr)
             print("💡 Try: dissectx yourfile.exe", file=sys.stderr)
             sys.exit(1)
+            
+        # Handle Generate Dump (Dynamic Unpacking)
+        if args.generate_dump:
+            try:
+                from src.emulation.unicorn_emulator import UnicornEmulator
+                from src.pe.memory_dump_analyzer import MemoryDumpAnalyzer
+                
+                target_file = args.generate_dump
+                dump_file = target_file + ".dmp"
+                
+                print(f"🦄 Emulating {target_file} to generate memory dump...")
+                
+                # Read PE data
+                with open(target_file, 'rb') as f:
+                    pe_data = f.read()
+                
+                # Initialize Emulator
+                emu = UnicornEmulator()
+                emu.load_pe(pe_data)
+                
+                # Run for 100,000 instructions (should be enough for basic unpacking)
+                print("⏳ Running 100,000 instructions (unpacking)...")
+                emu.emulate(count=100000)
+                
+                # Dump memory
+                emu.dump_memory(dump_file)
+                
+                # Analyze the new dump
+                print(f"\n🧠 Analyzing generated dump: {dump_file}...")
+                with open(dump_file, 'rb') as f:
+                    dump_data = f.read()
+                
+                analyzer = MemoryDumpAnalyzer()
+                results = analyzer.analyze_dump(dump_data, base_addr=emu.code_base)
+                print(analyzer.format_report(results))
+                return
+                
+            except Exception as e:
+                print(f"❌ Error generating dump: {e}")
+                return
         
+        # Handle Memory Dump Analysis
+        if args.memory_dump:
+            try:
+                from src.pe.memory_dump_analyzer import MemoryDumpAnalyzer
+                print(f"🧠 Analyzing memory dump: {args.memory_dump}...")
+                
+                with open(args.memory_dump, 'rb') as f:
+                    dump_data = f.read()
+                
+                analyzer = MemoryDumpAnalyzer()
+                results = analyzer.analyze_dump(dump_data, base_addr=0x0) # Base addr 0 for raw dump
+                print(analyzer.format_report(results))
+                return
+            except Exception as e:
+                print(f"❌ Error analyzing memory dump: {e}")
+                return
+
         # Step 0: Smart binary detection and analysis
         binary_analysis = None
         is_binary = False
@@ -122,8 +191,13 @@ def main():
             if is_binary:
                 print("🔍 Binary file detected! Analyzing...\n", file=sys.stderr)
                 
-                # Perform binary analysis
-                binary_analysis = binary_analyzer.analyze_binary(args.file)
+                # Perform binary analysis with advanced detection enabled by default
+                binary_analysis = binary_analyzer.analyze_binary(
+                    args.file, 
+                    advanced=args.advanced or True, # Default to True for now
+                    emulate=args.emulate,
+                    decrypt_strings=args.decrypt_strings
+                )
                 
                 # Print binary analysis report
                 report = binary_analyzer.format_analysis_report(binary_analysis)

@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Demo script for hexadecimal and symbol handling features"""
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from src.parser import AssemblyParser
 from src.translator import InstructionTranslator
 from src.formatter import OutputFormatter

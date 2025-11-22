@@ -1,134 +1,161 @@
 # 🔍 DissectX
 
-**CTF Binary Analysis Tool - Reverse Engineering Made Easy**
+**Advanced Binary Analysis & Reverse Engineering Platform**
 
-DissectX translates x86-64 assembly into plain English and extracts hidden flags from binaries. Perfect for CTF competitions and learning reverse engineering.
+DissectX is a professional-grade reverse engineering tool designed for CTF competitions and malware analysis. It bridges the gap between static analysis and dynamic execution, offering powerful features like CPU emulation, memory forensics, and automatic flag extraction.
 
-## Quick Start
+> **From "Good for picoCTF" → "Dominates Hard Real-World / Malware-Grade Reversing"**
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+## 🚀 Key Features
 
-# Analyze a binary (find flags/passwords)
-python main.py challenge.exe
+### 1. Core Analysis
+- **Auto-Translation**: Converts x86-64 assembly into plain English.
+- **Smart String Extraction**: Finds flags, passwords, and Base64-encoded secrets.
+- **Security Highlighting**: Identifies dangerous instructions and API calls.
 
-# Full analysis (disassembly + translation)
-python main.py challenge.exe --full
+### 2. Advanced Detection (Static)
+- **🛡️ Syscall Detection**: Identifies direct syscall stubs (Hell's Gate, SysWhispers) used to bypass EDR/AV.
+- **🔓 API Hash Resolver**: Automatically resolves obfuscated API calls (ROR13, CRC32, FNV-1a).
+- **🗑️ Junk Code Detection**: Detects anti-analysis techniques like fake symbols, opaque predicates, and protector signatures (VMProtect, Themida).
+- **🚩 Flag Finder**: Automatically extracts flags using regex, Base64 decoding, ROT13, and XOR brute-force.
 
-# Translate assembly code
-python main.py code.asm
-```
+### 3. Dynamic Analysis (Emulation)
+- **🦄 Unicorn Engine**: Safe, sandboxed CPU emulation for x86-64 code.
+- **🔐 String Decryption**:
+    - **Stack Strings**: Detects strings constructed byte-by-byte on the stack.
+    - **XOR Brute Force**: Automatically tries 256 keys to decrypt strings.
+    - **Emulation**: Decrypts complex obfuscated strings at runtime.
 
-## Features
+### 4. Memory Forensics
+- **🧠 Memory Dump Analysis**: Analyzes raw memory dumps for injected code and hidden threats.
+- **👻 Hidden PE Detection**: Finds PE files hidden inside other files or memory regions.
+- **💉 Shellcode Detection**: Identifies common shellcode patterns (GetPC, PEB access).
+- **🕳️ Process Hollowing**: Detects manual mapping and process hollowing techniques.
 
-- 🚩 **Auto-extract flags** - Finds hidden strings, passwords, and Base64-encoded data
-- 📖 **Assembly translation** - Converts x86-64 assembly to human-readable English
-- 🛡️ **Security detection** - Identifies packers, anti-debugging, and obfuscation
-- 🔍 **Pattern recognition** - Detects loops, conditionals, and function structures
-- 🎯 **CTF-optimized** - Built specifically for capture-the-flag challenges
+---
 
-## Usage Examples
-
-### Find the flag in a binary
-```bash
-python main.py mystery.exe
-```
-Output shows strings, decoded Base64, and security keywords.
-
-### Understand assembly code
-```bash
-python main.py code.asm
-```
-Translates each instruction with context and explanations.
-
-### Full reverse engineering
-```bash
-python main.py packed.exe --full
-```
-Disassembles, translates, and detects advanced protections (VMProtect, syscalls, etc.)
-
-### Interactive mode
-```bash
-python main.py -i
-# Paste assembly, press Ctrl+D when done
-```
-
-## Installation
+## 📦 Installation
 
 ```bash
+# Clone the repository
 git clone <repo-url>
 cd dissectx
+
+# Install dependencies (including Unicorn, Capstone, pefile)
 pip install -r requirements.txt
 ```
 
 **Requirements:**
 - Python 3.7+
-- `objdump` (for binary disassembly)
+- `unicorn` (for emulation)
+- `capstone` (for disassembly)
+- `pefile` (for PE analysis)
 
-## Command Reference
+---
 
+## 🛠️ Usage Guide
+
+### Basic Analysis
+Analyze a binary to find flags, strings, and basic info:
 ```bash
-python main.py <file>              # Auto-detect and analyze
-python main.py <file> --full       # Complete analysis (auto-saves)
-python main.py <file> -o out.txt   # Save to file
-python main.py <file> --strings-only  # Only extract strings
-python main.py -i                  # Interactive mode
+python main.py challenge.exe
 ```
 
-## What It Detects
-
-**Strings & Secrets:**
-- Plain text flags (flag{...}, CTF{...})
-- Base64 encoded data (auto-decoded)
-- Passwords and keys
-- Security-relevant API calls
-
-**Binary Protections:**
-- Packers (UPX, MPRESS, Themida)
-- Anti-debugging techniques
-- Direct syscalls (Hell's Gate)
-- VMProtect virtualization
-- API hashing
-
-**Code Patterns:**
-- Function prologues/epilogues
-- Loops and conditionals
-- String operations
-- Crypto operations (XOR, etc.)
-- Stack canaries
-
-## Helper Tools
-
-**XOR Brute Force:**
+### Full Disassembly & Translation
+Generate a complete analysis report with translated assembly:
 ```bash
-python decode_helper.py "encrypted_hex_string"
+python main.py challenge.exe --full
 ```
 
-## Example Output
-
-```
-🚩 POSSIBLE FLAG:
-   Encoded: ZmxhZ3tyM3YzcnNlX20z...
-   Decoded: flag{r3v3rse_m3_engr1ng}
-
-ASSEMBLY TRANSLATION:
-cmp eax, 0x1337
-  → Compare eax (32-bit accumulator) with 0x1337
-je correct_password
-  → Jump to correct_password if equal
+### Advanced Static Analysis
+Enable all advanced detection modules (Syscalls, API Hashing, Junk Code):
+```bash
+python main.py malware.exe --advanced
 ```
 
-## License
+### Dynamic Analysis (Emulation)
+Attempt to decrypt strings using emulation and stack string detection:
+```bash
+python main.py packed.exe --decrypt-strings
+```
+Run full emulation for deeper analysis:
+```bash
+python main.py packed.exe --emulate
+```
+
+### Dynamic Unpacking (Generate Dump)
+Automatically unpack a binary by running it in the emulator and dumping memory:
+```bash
+python main.py --generate-dump packed.exe
+```
+This is useful for packed malware that hides its code until runtime.
+
+### Memory Forensics
+Analyze a memory dump file for hidden malware:
+```bash
+python main.py --memory-dump process_dump.dmp
+```
+
+---
+
+## 📊 Command Reference
+
+| Flag | Description |
+|------|-------------|
+| `--full` | Complete analysis (disassembly + translation) |
+| `--advanced` | Enable all advanced static detections |
+| `--detect-syscalls` | Detect direct syscall stubs |
+| `--resolve-hashes` | Resolve API hashes |
+| `--detect-junk` | Detect junk code & anti-analysis |
+| `--decrypt-strings` | Attempt to decrypt strings (XOR/Stack) |
+| `--emulate` | Enable Unicorn emulation |
+| `--generate-dump <file>` | Run binary in emulator and dump memory |
+| `--memory-dump <file>` | Analyze a memory dump file |
+| `--strings-only` | Only show strings (fast mode) |
+| `-i`, `--interactive` | Interactive mode |
+
+---
+
+## 📝 Example Output
+
+```text
+🚩 FLAG DETECTION RESULTS
+======================================================================
+✅ Found 2 potential flag(s)!
+
+🎯 Flag #1 [HIGH CONFIDENCE]
+  Value: flag{reverse_m3_engr1ng}
+  Method: String Analysis
+
+⚠️ Flag #2 [MEDIUM CONFIDENCE]
+  Value: flag{n0_sn1ff1ng}
+  Method: XOR Decode (key: 0x55)
+======================================================================
+
+🔓 DECRYPTED STRINGS
+======================================================================
+Found 1 decrypted string(s)!
+
+🎯 String #1 [HIGH CONFIDENCE]
+  Value: http://malicious-c2.com/payload.exe
+  Method: Stack String Analysis
+  Encryption: Stack Construction
+======================================================================
+
+MEMORY DUMP ANALYSIS
+======================================================================
+🔍 Hidden PE Files (1):
+  • Offset: 0x14000, Size: 0x2000 [MANUALLY MAPPED]
+
+💉 Shellcode Patterns (2):
+  • 0x401000: JMP/POP pattern (GetPC)
+  • 0x401050: PEB access (x64)
+======================================================================
+```
+
+## 📄 License
 
 MIT License - Open source and free to use for CTFs, learning, and security research.
-
-## Contributing
-
-Contributions welcome! Run tests with:
-```bash
-pytest tests/ -v
-```
 
 ---
 

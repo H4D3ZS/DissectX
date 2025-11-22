@@ -4,6 +4,25 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
+# Import advanced detection modules
+try:
+    from .detectors.syscall_detector import SyscallDetector
+    from .detectors.api_hash_resolver import APIHashResolver
+    from .detectors.junk_detector import JunkDetector
+    from .detectors.flag_finder import FlagFinder
+    
+    # Emulation and Memory Analysis
+    from .emulation.unicorn_emulator import UnicornEmulator, UNICORN_AVAILABLE
+    from .emulation.string_decryptor import StringDecryptor
+    from .pe.memory_parser import MemoryPEParser, PEFILE_AVAILABLE
+    from .pe.memory_dump_analyzer import MemoryDumpAnalyzer
+    
+    ADVANCED_DETECTORS_AVAILABLE = True
+except ImportError:
+    ADVANCED_DETECTORS_AVAILABLE = False
+    UNICORN_AVAILABLE = False
+    PEFILE_AVAILABLE = False
+
 
 class BinaryAnalyzer:
     """Analyzes binary executables to extract strings and metadata"""
@@ -22,6 +41,26 @@ class BinaryAnalyzer:
             'encrypt', 'decrypt', 'hash',
             'canary', 'cookie', 'stack'
         ]
+        
+        # Initialize advanced detectors if available
+        if ADVANCED_DETECTORS_AVAILABLE:
+            self.syscall_detector = SyscallDetector()
+            self.api_hash_resolver = APIHashResolver()
+            self.junk_detector = JunkDetector()
+            self.flag_finder = FlagFinder()
+            
+            # Initialize Emulation & Memory tools
+            self.string_decryptor = StringDecryptor() if UNICORN_AVAILABLE else None
+            self.memory_parser = MemoryPEParser() if PEFILE_AVAILABLE else None
+            self.memory_analyzer = MemoryDumpAnalyzer() if PEFILE_AVAILABLE else None
+        else:
+            self.syscall_detector = None
+            self.api_hash_resolver = None
+            self.junk_detector = None
+            self.flag_finder = None
+            self.string_decryptor = None
+            self.memory_parser = None
+            self.memory_analyzer = None
         
         # Windows API functions of interest
         self.windows_api_functions = {
@@ -396,20 +435,25 @@ class BinaryAnalyzer:
             pass
         
         # Generic packer indication
+
         if indicators:
             return "Possibly packed: " + "; ".join(indicators)
         
         return None
     
-    def analyze_binary(self, filepath: str) -> Dict[str, any]:
+    def analyze_binary(self, filepath: str, advanced: bool = False, 
+                      emulate: bool = False, decrypt_strings: bool = False) -> Dict[str, any]:
         """
         Perform comprehensive binary analysis.
         
         Args:
             filepath: Path to the binary file
+            advanced: Enable advanced detection (syscalls, API hashing, junk code)
+            emulate: Enable emulation features
+            decrypt_strings: Enable string decryption
             
         Returns:
-            Dictionary containing analysis results
+            Analysis results dictionary
         """
         analysis = {
             'filepath': filepath,
@@ -422,7 +466,8 @@ class BinaryAnalyzer:
             'api_calls': {},
             'pe_sections': [],
             'packer': None,
-            'base64_strings': []
+            'base64_strings': [],
+            'advanced_analysis': {}
         }
         
         # Check if it's a binary
@@ -459,6 +504,46 @@ class BinaryAnalyzer:
         # Detect Base64 strings
         base64_strings = self.detect_base64_strings(all_strings)
         analysis['base64_strings'] = base64_strings
+        
+        # Advanced analysis (if enabled)
+        if advanced and ADVANCED_DETECTORS_AVAILABLE:
+            try:
+                with open(filepath, 'rb') as f:
+                    binary_data = f.read()
+                
+                # Flag detection (always run for CTF binaries)
+                if self.flag_finder:
+                    flag_results = self.flag_finder.find_flags(binary_data, all_strings)
+                    analysis['advanced_analysis']['flags'] = flag_results
+                
+                # Syscall detection
+                if self.syscall_detector:
+                    syscall_results = self.syscall_detector.analyze(binary_data)
+                    analysis['advanced_analysis']['syscalls'] = syscall_results
+                
+                # API hash resolution
+                if self.api_hash_resolver:
+                    api_hash_results = self.api_hash_resolver.analyze(binary_data)
+                    analysis['advanced_analysis']['api_hashing'] = api_hash_results
+                
+                # Junk code detection
+                if self.junk_detector:
+                    junk_results = self.junk_detector.analyze(binary_data)
+                    analysis['advanced_analysis']['junk_code'] = junk_results
+                
+                # String Decryption (Emulation)
+                if self.string_decryptor and decrypt_strings:
+                    decrypted_strings = self.string_decryptor.detect_encrypted_strings(binary_data)
+                    analysis['advanced_analysis']['decrypted_strings'] = decrypted_strings
+                
+                # In-Memory PE Analysis (Static check on disk file as if it were memory)
+                if self.memory_parser:
+                    # Treat file content as memory dump for analysis
+                    mem_analysis = self.memory_parser.parse_memory_dump(binary_data, base_addr=0x400000)
+                    analysis['advanced_analysis']['memory_pe'] = mem_analysis
+                    
+            except Exception as e:
+                analysis['advanced_analysis']['error'] = str(e)
         
         return analysis
     
@@ -591,6 +676,46 @@ class BinaryAnalyzer:
                     report.append(f"    Keywords: {', '.join(matched_keywords)}")
             
             report.append("")
+        
+        # Advanced analysis results
+        if analysis.get('advanced_analysis'):
+            adv = analysis['advanced_analysis']
+            
+            # Flag detection (show first!)
+            if 'flags' in adv and adv['flags']:
+                report.append("-" * 80)
+                if self.flag_finder:
+                    report.append(self.flag_finder.format_report(adv['flags']))
+            
+            # Syscall detection
+            if 'syscalls' in adv and adv['syscalls'].get('stubs_found', 0) > 0:
+                report.append("-" * 80)
+                if self.syscall_detector:
+                    report.append(self.syscall_detector.format_report(adv['syscalls']))
+            
+            # API hashing
+            if 'api_hashing' in adv and adv['api_hashing'].get('resolved_count', 0) > 0:
+                report.append("-" * 80)
+                if self.api_hash_resolver:
+                    report.append(self.api_hash_resolver.format_report(adv['api_hashing']))
+            
+            # Junk code
+            if 'junk_code' in adv and adv['junk_code'].get('threat_level') != 'NONE':
+                report.append("-" * 80)
+                if self.junk_detector:
+                    report.append(self.junk_detector.format_report(adv['junk_code']))
+            
+            # Decrypted Strings
+            if 'decrypted_strings' in adv and adv['decrypted_strings']:
+                report.append("-" * 80)
+                if self.string_decryptor:
+                    report.append(self.string_decryptor.format_report(adv['decrypted_strings']))
+            
+            # Memory PE Analysis
+            if 'memory_pe' in adv:
+                report.append("-" * 80)
+                if self.memory_parser:
+                    report.append(self.memory_parser.format_report(adv['memory_pe']))
         
         report.append("=" * 80)
         report.append("")
