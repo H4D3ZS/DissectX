@@ -1,4 +1,10 @@
 """Demo of the output formatter with a complete example"""
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from src.parser import AssemblyParser
 from src.analyzer import PatternAnalyzer
 from src.translator import InstructionTranslator
