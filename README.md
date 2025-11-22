@@ -10,6 +10,7 @@ DissectX is a professional-grade reverse engineering tool designed for CTF compe
 
 ### 1. Core Analysis
 - **Auto-Translation**: Converts x86-64 assembly into plain English.
+- **Decompiled View**: Generates a C-like pseudo-code block for the entire binary.
 - **Smart String Extraction**: Finds flags, passwords, and Base64-encoded secrets.
 - **Security Highlighting**: Identifies dangerous instructions and API calls.
 

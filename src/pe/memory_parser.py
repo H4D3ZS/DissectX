@@ -440,23 +440,30 @@ class MemoryPEParser:
                            f"Size: 0x{section.virtual_size:X}")
             lines.append("")
         
-        # Imports
+        # Imports - SHOW ALL for CTF analysis
         if analysis.imports:
-            lines.append(f"📥 Imports ({len(analysis.imports)} total, showing first 10):")
-            for imp in analysis.imports[:10]:
-                status = "✓" if imp.is_resolved else "✗"
-                lines.append(f"  {status} {imp.dll_name}!{imp.function_name}")
-            if len(analysis.imports) > 10:
-                lines.append(f"  ... and {len(analysis.imports) - 10} more")
+            lines.append(f"📥 Imports ({len(analysis.imports)} total - ALL SHOWN):")
             lines.append("")
-        
-        # Exports
+
+            # Group by DLL for better organization
+            from collections import defaultdict
+            imports_by_dll = defaultdict(list)
+            for imp in analysis.imports:
+                imports_by_dll[imp.dll_name].append(imp)
+
+            for dll_name in sorted(imports_by_dll.keys()):
+                dll_imports = imports_by_dll[dll_name]
+                lines.append(f"  📚 {dll_name} ({len(dll_imports)} functions):")
+                for imp in dll_imports:
+                    status = "✓" if imp.is_resolved else "✗"
+                    lines.append(f"     {status} {imp.function_name}")
+                lines.append("")
+
+        # Exports - SHOW ALL for CTF analysis
         if analysis.exports:
-            lines.append(f"📤 Exports ({len(analysis.exports)} total, showing first 5):")
-            for exp in analysis.exports[:5]:
+            lines.append(f"📤 Exports ({len(analysis.exports)} total - ALL SHOWN):")
+            for exp in analysis.exports:
                 lines.append(f"  • {exp}")
-            if len(analysis.exports) > 5:
-                lines.append(f"  ... and {len(analysis.exports) - 5} more")
             lines.append("")
         
         lines.append("=" * 70)

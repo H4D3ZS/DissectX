@@ -90,7 +90,8 @@ class AssemblyParser:
             line = line[:comment_match.start()].strip()
         
         # Extract label (ends with ':')
-        label_match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*):(.*)$', line)
+        # Handles standard labels "main:" and objdump style "<main>:"
+        label_match = re.match(r'^<?([a-zA-Z_][a-zA-Z0-9_]*)>?:(.*)$', line)
         if label_match:
             label = label_match.group(1)
             line = label_match.group(2).strip()
@@ -107,20 +108,35 @@ class AssemblyParser:
                 )
         
         # Extract address (hex number at the start, often followed by whitespace)
-        # Matches patterns like: "140001313", "0x140001313", "00401000"
+        # Matches patterns like: "140001313", "0x140001313", "00401000", "140001313:"
         # Also handles Ghidra format: "140001313 55 48 89 e5  push rbp"
         # Require at least 6 hex digits to avoid matching mnemonics like "add"
-        address_match = re.match(r'^(0x)?([0-9a-fA-F]{6,})\s+([0-9a-fA-F\s]+)\s+(.*)$', line)
+        address_match = re.match(r'^(0x)?([0-9a-fA-F]{6,})[:]?\s+([0-9a-fA-F\s]+)\s+(.*)$', line)
         if address_match:
             # Ghidra format with hex bytes
             address = address_match.group(2)
             line = address_match.group(4).strip()
         else:
             # Try simpler format without hex bytes
-            address_match = re.match(r'^(0x)?([0-9a-fA-F]{6,})\s+(.*)$', line)
+            address_match = re.match(r'^(0x)?([0-9a-fA-F]{6,})[:]?\s+(.*)$', line)
             if address_match:
                 address = address_match.group(2)
                 line = address_match.group(3).strip()
+        
+        # Check if the remaining line is a label (e.g. "<free>:" or "main:")
+        # Must have <...> OR end with : to avoid matching mnemonics like "int3"
+        label_match = re.match(r'^(?:<([a-zA-Z_][a-zA-Z0-9_]*)>:?|([a-zA-Z_][a-zA-Z0-9_]*):)$', line)
+        if label_match:
+            # Group 1 is for <label>, Group 2 is for label:
+            label = label_match.group(1) or label_match.group(2)
+            return Instruction(
+                address=address,
+                mnemonic='',
+                operands=[],
+                comment=comment,
+                label=label,
+                size_specifier=size_specifier
+            )
         
         # Now parse mnemonic and operands
         if not line:
