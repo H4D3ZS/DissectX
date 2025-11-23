@@ -10,7 +10,7 @@
     <div class="alert alert-success">
         <h3>Analysis Results Available</h3>
         <p>Binary analysis has been completed. Navigate to the sections below to explore the results.</p>
-        <a href="#upload-new" class="btn btn-primary" style="margin-top: 10px;">📤 Upload New Binary</a>
+        <a href="#upload-new" class="btn btn-primary" style="margin-top: 10px;" onclick="document.getElementById('upload-new').scrollIntoView({behavior: 'smooth'}); return false;">📤 Upload New Binary</a>
     </div>
 
     <div class="dashboard-grid">
@@ -48,6 +48,12 @@
             <h3>Call Graph</h3>
             <p>Interactive visualization of function call relationships and control flow.</p>
             <a href="/graph" class="btn btn-primary">View Graph</a>
+        </div>
+
+        <div class="dashboard-card">
+            <h3>Recent Scans</h3>
+            <p>Browse your scan history with hash verification and quick access to previous analyses.</p>
+            <a href="/recent-scans" class="btn btn-primary">View Recent Scans</a>
         </div>
     </div>
 
@@ -181,199 +187,21 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            console.log('DOM loaded, initializing upload functionality');
-
-            const uploadArea = document.getElementById('uploadArea');
-            const fileInput = document.getElementById('fileInput');
-            const fileInfo = document.getElementById('fileInfo');
-            const fileName = document.getElementById('fileName');
-            const fileSize = document.getElementById('fileSize');
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            const uploadForm = document.getElementById('uploadForm');
-            const progress = document.getElementById('progress');
-            const progressBar = document.getElementById('progressBar');
-            const results = document.getElementById('results');
-
-            console.log('Upload elements:', { uploadArea, fileInput, uploadForm });
-
-            if (!uploadArea || !fileInput) {
-                console.error('Required upload elements not found!');
-                return;
-            }
-
-            let selectedFile = null;
-
-            // Click to upload
-            uploadArea.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Upload area clicked!');
-                console.log('Triggering file input click');
-                fileInput.click();
-            });
-
-            // Drag and drop
-            uploadArea.addEventListener('dragover', function (e) {
-                e.preventDefault();
-                uploadArea.classList.add('dragover');
-            });
-
-            uploadArea.addEventListener('dragleave', function () {
-                uploadArea.classList.remove('dragover');
-            });
-
-            uploadArea.addEventListener('drop', function (e) {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleFile(files[0]);
-                }
-            });
-
-            // File input change
-            fileInput.addEventListener('change', function (e) {
-                console.log('File input changed');
-                if (e.target.files.length > 0) {
-                    handleFile(e.target.files[0]);
-                }
-            });
-
-            function handleFile(file) {
-                console.log('Handling file:', file.name);
-                selectedFile = file;
-                fileName.textContent = file.name;
-                fileSize.textContent = formatFileSize(file.size);
-                fileInfo.style.display = 'block';
-                analyzeBtn.disabled = false;
-            }
-
-            function formatFileSize(bytes) {
-                if (bytes < 1024) return bytes + ' B';
-                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-            }
-
-            // Form submission
-            uploadForm.addEventListener('submit', async function (e) {
-                e.preventDefault();
-
-                if (!selectedFile) return;
-
-                analyzeBtn.disabled = true;
-                progress.style.display = 'block';
-                if (results) results.style.display = 'none';
-
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-
-                try {
-                    // Simulate progress
-                    let progressValue = 0;
-                    const progressInterval = setInterval(function () {
-                        progressValue += 5;
-                        if (progressValue >= 90) {
-                            clearInterval(progressInterval);
-                        }
-                        progressBar.style.width = progressValue + '%';
-                    }, 100);
-
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    clearInterval(progressInterval);
-                    progressBar.style.width = '100%';
-
-                    const data = await response.json();
-
-                    setTimeout(function () {
-                        progress.style.display = 'none';
-                        displayResults(data);
-                        analyzeBtn.disabled = false;
-                    }, 500);
-
-                } catch (error) {
-                    alert('Error analyzing file: ' + error.message);
-                    progress.style.display = 'none';
-                    analyzeBtn.disabled = false;
-                }
-            });
-
-            function displayResults(data) {
-                if (data.error) {
-                    if (results) {
-                        results.innerHTML = `
-                            <div class="alert alert-danger">
-                                <h3>Error</h3>
-                                <p>${data.error}</p>
-                            </div>
-                        `;
-                        results.style.display = 'block';
-                    }
-                } else if (data.success && data.redirect) {
-                    // Analysis complete! Redirect to dashboard to see full results
-                    if (results) {
-                        results.innerHTML = `
-                            <div class="alert alert-success">
-                                <h3>✅ Analysis Complete!</h3>
-                                <p>Redirecting to dashboard...</p>
-                            </div>
-                        `;
-                        results.style.display = 'block';
-                    }
-
-                    // Redirect after a short delay
-                    setTimeout(function () {
-                        window.location.href = data.redirect;
-                    }, 1000);
-                }
-            }
-        });
-    </script>
-    {% endif %}
-
-    <!-- Upload functionality JavaScript - Always loaded -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            console.log('DOM loaded, initializing upload functionality');
-
-            // Find ALL upload areas and file inputs (there might be duplicates)
-            const uploadAreas = document.querySelectorAll('.upload-area');
-            const fileInputs = document.querySelectorAll('input[type="file"]');
-
-            console.log(`Found ${uploadAreas.length} upload areas and ${fileInputs.length} file inputs`);
-
-            if (uploadAreas.length === 0 || fileInputs.length === 0) {
-                console.error('No upload elements found!');
-                return;
-            }
-
-            // Attach click handlers to ALL upload areas
-            uploadAreas.forEach((uploadArea, index) => {
-                const fileInput = fileInputs[index] || fileInputs[0]; // Use corresponding input or first one
-                const form = uploadArea.closest('form');
-
-                if (!form) {
-                    console.error('Upload area has no parent form');
-                    return;
-                }
-
-                const fileInfo = form.querySelector('.file-info') || document.getElementById('fileInfo');
-                const fileName = form.querySelector('.file-name') || document.getElementById('fileName');
-                const fileSize = form.querySelector('.file-size') || document.getElementById('fileSize');
-                const analyzeBtn = form.querySelector('button[type="submit"]') || document.getElementById('analyzeBtn');
-                const progress = form.querySelector('.progress') || document.getElementById('progress');
-                const progressBar = form.querySelector('.progress-bar') || document.getElementById('progressBar');
+            // Setup all upload forms on the page
+            document.querySelectorAll('#uploadForm').forEach(function(uploadForm) {
+                const fileInput = uploadForm.querySelector('input[type="file"]');
+                const uploadArea = uploadForm.querySelector('.upload-area');
+                const fileInfo = uploadForm.querySelector('.file-info');
+                const fileName = uploadForm.querySelector('.file-name');
+                const fileSize = uploadForm.querySelector('.file-size');
+                const analyzeBtn = uploadForm.querySelector('button[type="submit"]');
+                const progress = uploadForm.querySelector('.progress');
+                const progressBar = uploadForm.querySelector('.progress-bar');
                 const results = document.getElementById('results');
 
+                if (!fileInput || !uploadArea) return;
+
                 let selectedFile = null;
-
-                console.log(`Setting up upload area ${index}:`, { uploadArea, fileInput, form });
-
-                // Click to upload - REMOVED because <label> handles it natively
-                // uploadArea.addEventListener('click', ...);
 
                 // Drag and drop
                 uploadArea.addEventListener('dragover', function (e) {
@@ -390,20 +218,22 @@
                     uploadArea.classList.remove('dragover');
                     const files = e.dataTransfer.files;
                     if (files.length > 0) {
+                        // Manually set the file to the input
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(files[0]);
+                        fileInput.files = dataTransfer.files;
                         handleFile(files[0]);
                     }
                 });
 
                 // File input change
                 fileInput.addEventListener('change', function (e) {
-                    console.log(`File input ${index} changed`);
                     if (e.target.files.length > 0) {
                         handleFile(e.target.files[0]);
                     }
                 });
 
                 function handleFile(file) {
-                    console.log('Handling file:', file.name);
                     selectedFile = file;
                     if (fileName) fileName.textContent = file.name;
                     if (fileSize) fileSize.textContent = formatFileSize(file.size);
@@ -418,7 +248,7 @@
                 }
 
                 // Form submission
-                form.addEventListener('submit', async function (e) {
+                uploadForm.addEventListener('submit', async function (e) {
                     e.preventDefault();
 
                     if (!selectedFile) return;
@@ -496,6 +326,9 @@
             });
         });
     </script>
+    {% endif %}
+
+
 
     <div class="features-section">
         <h2>Features</h2>

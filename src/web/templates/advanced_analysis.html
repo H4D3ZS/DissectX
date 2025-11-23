@@ -9,7 +9,7 @@
     <!-- Syscalls Section -->
     <div class="function-section">
         <h2 class="section-title">System Calls Detected</h2>
-        {% if advanced.syscalls %}
+        {% if advanced.syscalls and advanced.syscalls|length > 0 %}
         <div class="code-container">
             <table class="info-table">
                 <thead>
@@ -22,9 +22,15 @@
                 <tbody>
                     {% for syscall in advanced.syscalls %}
                     <tr>
-                        <td><code>{{ syscall.name }}</code></td>
-                        <td><code>{{ syscall.address }}</code></td>
-                        <td>{{ syscall.description }}</td>
+                        {% if syscall is mapping %}
+                        <td><code>{{ syscall.name or syscall.syscall or syscall }}</code></td>
+                        <td><code>{{ syscall.address or 'N/A' }}</code></td>
+                        <td>{{ syscall.description or syscall.desc or 'System call detected' }}</td>
+                        {% else %}
+                        <td><code>{{ syscall }}</code></td>
+                        <td><code>N/A</code></td>
+                        <td>System call detected</td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -38,7 +44,7 @@
     <!-- API Hashes Section -->
     <div class="function-section">
         <h2 class="section-title">Resolved API Hashes</h2>
-        {% if advanced.api_hashes %}
+        {% if advanced.api_hashes and advanced.api_hashes|length > 0 %}
         <div class="code-container">
             <table class="info-table">
                 <thead>
@@ -51,9 +57,15 @@
                 <tbody>
                     {% for hash in advanced.api_hashes %}
                     <tr>
-                        <td><code>{{ hash.hash }}</code></td>
-                        <td><code>{{ hash.api_name }}</code></td>
-                        <td>{{ hash.library }}</td>
+                        {% if hash is mapping %}
+                        <td><code>{{ hash.hash or hash.value or hash }}</code></td>
+                        <td><code>{{ hash.api_name or hash.api or 'Unknown' }}</code></td>
+                        <td>{{ hash.library or hash.lib or 'N/A' }}</td>
+                        {% else %}
+                        <td><code>{{ hash }}</code></td>
+                        <td><code>Unknown</code></td>
+                        <td>N/A</td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -67,7 +79,7 @@
     <!-- Junk Code Section -->
     <div class="function-section">
         <h2 class="section-title">Junk Code Patterns</h2>
-        {% if advanced.junk_patterns %}
+        {% if advanced.junk_patterns and advanced.junk_patterns|length > 0 %}
         <div class="code-container">
             <table class="info-table">
                 <thead>
@@ -80,9 +92,15 @@
                 <tbody>
                     {% for pattern in advanced.junk_patterns %}
                     <tr>
-                        <td><code>{{ pattern.type }}</code></td>
-                        <td><code>{{ pattern.address }}</code></td>
-                        <td>{{ pattern.confidence }}%</td>
+                        {% if pattern is mapping %}
+                        <td><code>{{ pattern.type or pattern.pattern or 'Junk Code' }}</code></td>
+                        <td><code>{{ pattern.address or 'N/A' }}</code></td>
+                        <td>{{ pattern.confidence or 'Medium' }}{% if pattern.confidence is number %}%{% endif %}</td>
+                        {% else %}
+                        <td><code>{{ pattern }}</code></td>
+                        <td><code>N/A</code></td>
+                        <td>Medium</td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -96,22 +114,28 @@
     <!-- Advanced Flags Section -->
     <div class="function-section">
         <h2 class="section-title">Advanced Flags</h2>
-        {% if advanced.advanced_flags %}
+        {% if advanced.advanced_flags and advanced.advanced_flags|length > 0 %}
         <div class="code-container">
             <table class="info-table">
                 <thead>
                     <tr>
                         <th>Flag</th>
-                        <th>Location</th>
-                        <th>Method</th>
+                        <th>Type</th>
+                        <th>Confidence</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for flag in advanced.advanced_flags %}
                     <tr>
-                        <td><code>{{ flag.value }}</code></td>
-                        <td>{{ flag.location }}</td>
-                        <td>{{ flag.method }}</td>
+                        {% if flag is mapping %}
+                        <td><code>{{ flag.value or flag.flag or flag }}</code></td>
+                        <td>{{ flag.type or flag.method or 'Detection' }}</td>
+                        <td>{{ flag.confidence or 'High' }}</td>
+                        {% else %}
+                        <td><code>{{ flag }}</code></td>
+                        <td>Detection</td>
+                        <td>High</td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -125,7 +149,7 @@
     <!-- Decrypted Strings Section -->
     <div class="function-section">
         <h2 class="section-title">Decrypted Strings</h2>
-        {% if advanced.decrypted_strings %}
+        {% if advanced.decrypted_strings and advanced.decrypted_strings|length > 0 %}
         <div class="code-container">
             <table class="info-table">
                 <thead>
@@ -138,9 +162,15 @@
                 <tbody>
                     {% for string in advanced.decrypted_strings %}
                     <tr>
-                        <td><code>{{ string.encrypted }}</code></td>
-                        <td><code>{{ string.decrypted }}</code></td>
-                        <td>{{ string.algorithm }}</td>
+                        {% if string is mapping %}
+                        <td><code>{{ string.encrypted or string.original or 'N/A' }}</code></td>
+                        <td><code>{{ string.decrypted or string.decoded or string.value or string }}</code></td>
+                        <td>{{ string.algorithm or string.method or 'Unknown' }}</td>
+                        {% else %}
+                        <td><code>N/A</code></td>
+                        <td><code>{{ string }}</code></td>
+                        <td>Unknown</td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
