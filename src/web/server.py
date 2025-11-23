@@ -773,8 +773,16 @@ class WebUIServer:
                 use_polymorph = request.args.get('polymorph', 'false').lower() == 'true'
                 auto_run = request.args.get('autorun', 'true').lower() == 'true'
                 
+                # Remote exploitation parameters
+                remote = request.args.get('remote', 'false').lower() == 'true'
+                remote_host = request.args.get('host', None) if remote else None
+                remote_port = int(request.args.get('port', 0)) if remote and request.args.get('port') else None
+                
                 print(f"[DEBUG] About to call generate_exploit with offset={offset}, buffer_addr={hex(buffer_addr)}")
-                script = exploiter.generate_exploit(filepath, offset, buffer_addr, use_encoding, use_polymorph)
+                if remote_host and remote_port:
+                    print(f"[+] Remote exploitation enabled: {remote_host}:{remote_port}")
+                
+                script = exploiter.generate_exploit(filepath, offset, buffer_addr, use_encoding, use_polymorph, remote_host, remote_port)
                 print(f"[DEBUG] generate_exploit returned, script length: {len(script)}")
                 
                 response_data = {
