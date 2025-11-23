@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Error - DissectX{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <h1>Error</h1>
+    
+    <div class="alert alert-danger">
+        <h3>An error occurred</h3>
+        <p>{{ error }}</p>
+    </div>
+    
+    <a href="/" class="btn btn-primary">Return to Dashboard</a>
+</div>
+{% endblock %}

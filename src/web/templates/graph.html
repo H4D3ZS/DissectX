@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Call Graph - DissectX{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="page-title">Call Graph Visualization</h1>
+
+    {% if graph %}
+
+    <!-- Graph Statistics -->
+    <div class="function-section">
+        <h2 class="section-title">📊 Statistics</h2>
+        <div class="graph-stats">
+            <div class="stat-card">
+                <div class="stat-value">{{ graph.total_functions }}</div>
+                <div class="stat-label">Total Functions</div>
+                <div class="stat-help">All functions found in the binary</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ graph.total_calls }}</div>
+                <div class="stat-label">Function Calls</div>
+                <div class="stat-help">Total number of call relationships</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ graph.entry_points|length }}</div>
+                <div class="stat-label">Entry Points</div>
+                <div class="stat-help">Functions that start execution (no callers)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ graph.recursive_functions|length }}</div>
+                <div class="stat-label">Recursive Functions</div>
+                <div class="stat-help">Functions that call themselves (directly or indirectly)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ graph.dead_code|length }}</div>
+                <div class="stat-label">Dead Code</div>
+                <div class="stat-help">Unreachable functions (never called)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Entry Points -->
+    {% if graph.entry_points %}
+    <div class="function-section">
+        <h2 class="section-title">🚀 Entry Points</h2>
+        <p style="color: #858585; margin-bottom: 1rem;">These functions are where program execution begins. They have no
+            callers.</p>
+        <div class="badge-list">
+            {% for addr in graph.entry_points %}
+            <span class="badge badge-entry" title="Entry point - program starts here">{{ addr }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recursive Functions -->
+    {% if graph.recursive_functions %}
+    <div class="function-section">
+        <h2 class="section-title">🔄 Recursive Functions</h2>
+        <p style="color: #858585; margin-bottom: 1rem;">These functions call themselves, either directly or through
+            other functions. Watch for infinite loops!</p>
+        <div class="badge-list">
+            {% for addr in graph.recursive_functions %}
+            <span class="badge badge-recursive" title="Recursive - calls itself">{{ addr }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Dead Code -->
+    {% if graph.dead_code %}
+    <div class="function-section">
+        <h2 class="section-title">💀 Dead Code (Unreachable)</h2>
+        <p style="color: #858585; margin-bottom: 1rem;">These functions are never called from any entry point. They
+            might be:</p>
+        <ul style="color: #858585; margin-left: 2rem; margin-bottom: 1rem;">
+            <li>Unused legacy code</li>
+            <li>Debug functions</li>
+            <li>Code called through function pointers (not detected)</li>
+            <li>Potential bugs (intended to be called but aren't)</li>
+        </ul>
+        <div class="badge-list">
+            {% for addr in graph.dead_code %}
+            <span class="badge badge-dead" title="Dead code - never called">{{ addr }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Function Information -->
+    {% if graph.function_details %}
+    <div class="function-section">
+        <h2 class="section-title">🔍 Detailed Function Analysis</h2>
+        <p style="color: #858585; margin-bottom: 1rem;">Click on any function to see what it does:</p>
+
+        <div class="function-grid">
+            {% for addr, details in graph.function_details.items() %}
+            <div
+                class="function-detail-card {% if details.is_entry %}entry-card{% elif details.is_recursive %}recursive-card{% elif details.is_dead %}dead-card{% endif %}">
+                <div class="function-header">
+                    <span class="function-addr">{{ details.address }}</span>
+                    <div class="function-badges">
+                        {% if details.is_entry %}<span class="mini-badge entry">ENTRY</span>{% endif %}
+                        {% if details.is_recursive %}<span class="mini-badge recursive">RECURSIVE</span>{% endif %}
+                        {% if details.is_dead %}<span class="mini-badge dead">DEAD</span>{% endif %}
+                    </div>
+                </div>
+
+                <div class="function-explanation">
+                    {{ details.explanation }}
+                </div>
+
+                <div class="function-stats">
+                    <div class="stat-item">
+                        <span class="stat-icon">📞</span>
+                        <span class="stat-text">Calls: {{ details.callee_count }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">📥</span>
+                        <span class="stat-text">Called by: {{ details.caller_count }}</span>
+                    </div>
+                    {% if details.strings %}
+                    <div class="stat-item">
+                        <span class="stat-icon">📝</span>
+                        <span class="stat-text">Strings: {{ details.strings|length }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Mermaid Diagram -->
+    <div class="function-section">
+        <h2 class="section-title">🗺️ Interactive Call Graph</h2>
+        <p style="color: #858585; margin-bottom: 1rem;">
+            <strong>How to use:</strong> Scroll to zoom, drag to pan.
+            Green = entry points, Yellow = recursive, Red = dead code.
+        </p>
+        <div class="mermaid-container">
+            <pre class="mermaid">{{ graph.mermaid }}</pre>
+        </div>
+    </div>
+
+    <!-- ASCII Tree (Fallback) -->
+    <div class="function-section">
+        <h2 class="section-title">🌲 ASCII Tree View</h2>
+        <p style="color: #858585; margin-bottom: 1rem;">Text-based representation of the call graph. Useful for copying
+            or viewing in terminal.</p>
+        <div class="code-container">
+            <pre><code>{{ graph.ascii }}</code></pre>
+        </div>
+    </div>
+
+    {% else %}
+    <p class="no-data">No call graph data available. Upload a binary to generate call graph.</p>
+    {% endif %}
+</div>
+
+<!-- Mermaid.js for rendering diagrams -->
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis'
+        },
+        themeVariables: {
+            primaryColor: '#28a745',
+            primaryTextColor: '#ffffff',
+            primaryBorderColor: '#28a745',
+            lineColor: '#007acc',
+            secondaryColor: '#ffc107',
+            tertiaryColor: '#dc3545',
+            background: '#1e1e1e',
+            mainBkg: '#2d2d30',
+            secondBkg: '#252526',
+            textColor: '#d4d4d4',
+            border1: '#007acc',
+            border2: '#3c3c3c',
+            arrowheadColor: '#007acc',
+            fontFamily: '"Consolas", "Monaco", "Courier New", monospace',
+            fontSize: '14px'
+        }
+    });
+</script>
+
+<style>
+    .guide-content ul {
+        list-style-type: disc;
+    }
+
+    .guide-content li {
+        margin: 0.5rem 0;
+    }
+
+    .stat-help {
+        font-size: 0.75rem;
+        color: #858585;
+        margin-top: 0.5rem;
+        font-style: italic;
+    }
+</style>
+{% endblock %}

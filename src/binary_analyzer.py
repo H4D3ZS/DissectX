@@ -42,6 +42,10 @@ class BinaryAnalyzer:
             'canary', 'cookie', 'stack'
         ]
         
+        # String-to-function tracking (bidirectional mapping)
+        self.string_to_functions = {}  # string -> [function_addresses]
+        self.function_to_strings = {}  # function_address -> [strings]
+        
         # Initialize advanced detectors if available
         if ADVANCED_DETECTORS_AVAILABLE:
             self.syscall_detector = SyscallDetector()
@@ -441,6 +445,358 @@ class BinaryAnalyzer:
         
         return None
     
+    def track_string_usage(self, string: str, function_address: str):
+        """
+        Track that a string is used by a function (bidirectional mapping).
+        
+        Args:
+            string: The string being referenced
+            function_address: Address of the function using the string
+        """
+        # String -> Functions mapping
+        if string not in self.string_to_functions:
+            self.string_to_functions[string] = []
+        if function_address not in self.string_to_functions[string]:
+            self.string_to_functions[string].append(function_address)
+        
+        # Function -> Strings mapping
+        if function_address not in self.function_to_strings:
+            self.function_to_strings[function_address] = []
+        if string not in self.function_to_strings[function_address]:
+            self.function_to_strings[function_address].append(string)
+    
+    def get_functions_using_string(self, string: str) -> List[str]:
+        """
+        Get all functions that reference a given string.
+        
+        Args:
+            string: The string to look up
+            
+        Returns:
+            List of function addresses that use this string
+        """
+        return self.string_to_functions.get(string, [])
+    
+    def get_strings_in_function(self, function_address: str) -> List[str]:
+        """
+        Get all strings referenced by a given function.
+        
+        Args:
+            function_address: Address of the function
+            
+        Returns:
+            List of strings used by this function
+        """
+        return self.function_to_strings.get(function_address, [])
+    
+    def extract_string_references_from_disassembly(self, disassembly: str, strings: List[str]) -> Dict[str, List[str]]:
+        """
+        Extract string-to-function mappings from disassembly output.
+        
+        Args:
+            disassembly: Disassembly output from objdump
+            strings: List of strings found in the binary
+            
+        Returns:
+            Dictionary mapping strings to function addresses
+        """
+        if not disassembly:
+            return {}
+        
+        current_function = None
+        lines = disassembly.split('\n')
+        
+        for line in lines:
+            # Detect function boundaries (e.g., "0000000000001234 <main>:")
+            if '<' in line and '>:' in line:
+                # Extract function address and name
+                parts = line.split('<')
+                if len(parts) >= 2:
+                    addr_part = parts[0].strip()
+                    # Extract just the address
+                    addr_match = re.search(r'([0-9a-fA-F]+)', addr_part)
+                    if addr_match:
+                        current_function = addr_match.group(1)
+            
+            # Look for string references in instructions
+            if current_function:
+                for string in strings:
+                    # Check if string appears in the instruction line
+                    # Common patterns: lea, mov with string addresses
+                    if string in line:
+                        self.track_string_usage(string, current_function)
+        
+        return self.string_to_functions
+    
+    def detect_string_usage_pattern(self, disassembly: str, string: str) -> Optional[str]:
+        """
+        Detect how a string is being used based on surrounding instructions.
+        
+        Args:
+            disassembly: Disassembly output
+            string: The string to analyze
+            
+        Returns:
+            Usage pattern type: 'printf', 'strcmp', 'memcpy', 'strcpy', 'other', or None
+        """
+        if not disassembly or not string:
+            return None
+        
+        lines = disassembly.split('\n')
+        
+        # Find lines that reference this string
+        for i, line in enumerate(lines):
+            if string in line:
+                # Look at surrounding instructions (context window)
+                context_start = max(0, i - 5)
+                context_end = min(len(lines), i + 10)
+                context = '\n'.join(lines[context_start:context_end]).lower()
+                
+                # Detect function calls in context
+                if 'call' in context:
+                    # Check for specific function patterns
+                    if any(func in context for func in ['printf', 'fprintf', 'sprintf', 'snprintf']):
+                        return 'printf'
+                    elif any(func in context for func in ['strcmp', 'strncmp', 'strcasecmp']):
+                        return 'strcmp'
+                    elif any(func in context for func in ['memcpy', 'memmove']):
+                        return 'memcpy'
+                    elif any(func in context for func in ['strcpy', 'strncpy', 'strcat', 'strncat']):
+                        return 'strcpy'
+                    else:
+                        return 'other'
+        
+        return None
+    
+    def classify_string_usage(self, strings: List[str], disassembly: str) -> Dict[str, Dict[str, any]]:
+        """
+        Classify usage patterns for all strings.
+        
+        Args:
+            strings: List of strings to classify
+            disassembly: Disassembly output
+            
+        Returns:
+            Dictionary mapping strings to their usage information
+        """
+        usage_classification = {}
+        
+        for string in strings:
+            pattern = self.detect_string_usage_pattern(disassembly, string)
+            functions = self.get_functions_using_string(string)
+            
+            usage_classification[string] = {
+                'pattern': pattern,
+                'functions': functions,
+                'usage_count': len(functions)
+            }
+        
+        return usage_classification
+    
+    def detect_format_specifiers(self, string: str) -> List[str]:
+        """
+        Detect format specifiers in a string.
+        
+        Args:
+            string: String to analyze
+            
+        Returns:
+            List of format specifiers found (%s, %d, %x, etc.)
+        """
+        # Common format specifiers
+        format_pattern = re.compile(r'%[-+0 #]?[*]?[0-9]*\.?[0-9]*[hlL]?[diouxXeEfFgGaAcspn%]')
+        matches = format_pattern.findall(string)
+        return matches
+    
+    def is_format_string_vulnerable(self, string: str, usage_pattern: Optional[str]) -> Tuple[bool, str]:
+        """
+        Check if a string represents a potential format string vulnerability.
+        
+        Args:
+            string: The string to check
+            usage_pattern: How the string is used (printf, strcmp, etc.)
+            
+        Returns:
+            Tuple of (is_vulnerable, reason)
+        """
+        # Detect format specifiers
+        format_specs = self.detect_format_specifiers(string)
+        
+        if not format_specs:
+            return False, ""
+        
+        # If string has format specifiers and is used in printf-like functions
+        if usage_pattern == 'printf':
+            # Check for potentially dangerous patterns
+            dangerous_specs = [spec for spec in format_specs if spec in ['%s', '%n', '%x', '%p']]
+            
+            if dangerous_specs:
+                return True, f"Format string with potentially dangerous specifiers: {', '.join(dangerous_specs)}"
+            else:
+                return True, f"Format string with specifiers: {', '.join(format_specs)}"
+        
+        return False, ""
+    
+    def detect_format_string_vulnerabilities(self, strings: List[str], usage_classification: Dict[str, Dict[str, any]]) -> List[Dict[str, any]]:
+        """
+        Detect potential format string vulnerabilities.
+        
+        Args:
+            strings: List of strings to check
+            usage_classification: Classification of string usage patterns
+            
+        Returns:
+            List of potential vulnerabilities with details
+        """
+        vulnerabilities = []
+        
+        for string in strings:
+            usage_info = usage_classification.get(string, {})
+            usage_pattern = usage_info.get('pattern')
+            
+            is_vulnerable, reason = self.is_format_string_vulnerable(string, usage_pattern)
+            
+            if is_vulnerable:
+                vulnerabilities.append({
+                    'string': string,
+                    'reason': reason,
+                    'usage_pattern': usage_pattern,
+                    'functions': usage_info.get('functions', []),
+                    'format_specifiers': self.detect_format_specifiers(string)
+                })
+        
+        return vulnerabilities
+    
+    def generate_string_xref_report(self, string: str) -> str:
+        """
+        Generate a cross-reference report for a specific string.
+        
+        Args:
+            string: The string to generate report for
+            
+        Returns:
+            Formatted cross-reference report
+        """
+        report = []
+        report.append(f"Cross-References for String: \"{string}\"")
+        report.append("=" * 80)
+        
+        functions = self.get_functions_using_string(string)
+        
+        if not functions:
+            report.append("No cross-references found.")
+        else:
+            report.append(f"Used in {len(functions)} function(s):")
+            report.append("")
+            for func_addr in functions:
+                report.append(f"  • Function at address: 0x{func_addr}")
+                # List other strings in the same function
+                other_strings = [s for s in self.get_strings_in_function(func_addr) if s != string]
+                if other_strings:
+                    report.append(f"    Other strings in this function: {len(other_strings)}")
+        
+        return '\n'.join(report)
+    
+    def generate_function_xref_report(self, function_address: str) -> str:
+        """
+        Generate a cross-reference report for a specific function.
+        
+        Args:
+            function_address: Address of the function
+            
+        Returns:
+            Formatted cross-reference report
+        """
+        report = []
+        report.append(f"Cross-References for Function: 0x{function_address}")
+        report.append("=" * 80)
+        
+        strings = self.get_strings_in_function(function_address)
+        
+        if not strings:
+            report.append("No string references found.")
+        else:
+            report.append(f"References {len(strings)} string(s):")
+            report.append("")
+            for string in strings:
+                # Truncate long strings
+                display_string = string if len(string) <= 60 else string[:57] + "..."
+                report.append(f"  • \"{display_string}\"")
+        
+        return '\n'.join(report)
+    
+    def generate_all_xrefs_report(self) -> str:
+        """
+        Generate a comprehensive cross-reference report for all strings and functions.
+        
+        Returns:
+            Formatted comprehensive cross-reference report
+        """
+        report = []
+        report.append("=" * 80)
+        report.append("STRING CROSS-REFERENCE REPORT")
+        report.append("=" * 80)
+        report.append("")
+        
+        # Summary statistics
+        total_strings = len(self.string_to_functions)
+        total_functions = len(self.function_to_strings)
+        
+        report.append(f"Total Strings Tracked: {total_strings}")
+        report.append(f"Total Functions Tracked: {total_functions}")
+        report.append("")
+        
+        # Strings with most references
+        if self.string_to_functions:
+            report.append("-" * 80)
+            report.append("STRINGS BY USAGE FREQUENCY")
+            report.append("-" * 80)
+            
+            # Sort strings by number of references
+            sorted_strings = sorted(
+                self.string_to_functions.items(),
+                key=lambda x: len(x[1]),
+                reverse=True
+            )
+            
+            # Show top 10
+            for string, functions in sorted_strings[:10]:
+                display_string = string if len(string) <= 50 else string[:47] + "..."
+                report.append(f"  • \"{display_string}\"")
+                report.append(f"    Used in {len(functions)} function(s): {', '.join(['0x' + f for f in functions[:5]])}")
+                if len(functions) > 5:
+                    report.append(f"    ... and {len(functions) - 5} more")
+                report.append("")
+        
+        # Functions with most string references
+        if self.function_to_strings:
+            report.append("-" * 80)
+            report.append("FUNCTIONS BY STRING REFERENCE COUNT")
+            report.append("-" * 80)
+            
+            # Sort functions by number of string references
+            sorted_functions = sorted(
+                self.function_to_strings.items(),
+                key=lambda x: len(x[1]),
+                reverse=True
+            )
+            
+            # Show top 10
+            for func_addr, strings in sorted_functions[:10]:
+                report.append(f"  • Function at 0x{func_addr}")
+                report.append(f"    References {len(strings)} string(s)")
+                # Show first few strings
+                for string in strings[:3]:
+                    display_string = string if len(string) <= 50 else string[:47] + "..."
+                    report.append(f"      - \"{display_string}\"")
+                if len(strings) > 3:
+                    report.append(f"      ... and {len(strings) - 3} more")
+                report.append("")
+        
+        report.append("=" * 80)
+        
+        return '\n'.join(report)
+    
     def analyze_binary(self, filepath: str, advanced: bool = False, 
                       emulate: bool = False, decrypt_strings: bool = False) -> Dict[str, any]:
         """
@@ -504,6 +860,21 @@ class BinaryAnalyzer:
         # Detect Base64 strings
         base64_strings = self.detect_base64_strings(all_strings)
         analysis['base64_strings'] = base64_strings
+        
+        # Extract string-to-function mappings from disassembly
+        disassembly = self.disassemble_binary(filepath)
+        if disassembly:
+            self.extract_string_references_from_disassembly(disassembly, all_strings)
+            analysis['string_to_functions'] = self.string_to_functions
+            analysis['function_to_strings'] = self.function_to_strings
+            
+            # Classify string usage patterns
+            usage_classification = self.classify_string_usage(all_strings, disassembly)
+            analysis['string_usage_patterns'] = usage_classification
+            
+            # Detect format string vulnerabilities
+            format_string_vulns = self.detect_format_string_vulnerabilities(all_strings, usage_classification)
+            analysis['format_string_vulnerabilities'] = format_string_vulns
         
         # Advanced analysis (if enabled)
         if advanced and ADVANCED_DETECTORS_AVAILABLE:
@@ -675,6 +1046,59 @@ class BinaryAnalyzer:
                 if matched_keywords:
                     report.append(f"    Keywords: {', '.join(matched_keywords)}")
             
+            report.append("")
+        
+        # String usage patterns
+        if analysis.get('string_usage_patterns'):
+            report.append("-" * 80)
+            report.append("STRING USAGE PATTERNS")
+            report.append("-" * 80)
+            
+            patterns_summary = {}
+            for string, info in analysis['string_usage_patterns'].items():
+                pattern = info.get('pattern', 'unknown')
+                if pattern:
+                    patterns_summary[pattern] = patterns_summary.get(pattern, 0) + 1
+            
+            if patterns_summary:
+                report.append("Pattern Distribution:")
+                for pattern, count in sorted(patterns_summary.items(), key=lambda x: x[1], reverse=True):
+                    report.append(f"  • {pattern}: {count} string(s)")
+                report.append("")
+        
+        # Format string vulnerabilities
+        if analysis.get('format_string_vulnerabilities'):
+            vulns = analysis['format_string_vulnerabilities']
+            if vulns:
+                report.append("-" * 80)
+                report.append("⚠️  FORMAT STRING VULNERABILITIES DETECTED")
+                report.append("-" * 80)
+                
+                for vuln in vulns:
+                    display_string = vuln['string'] if len(vuln['string']) <= 60 else vuln['string'][:57] + "..."
+                    report.append(f"  • String: \"{display_string}\"")
+                    report.append(f"    Reason: {vuln['reason']}")
+                    report.append(f"    Usage: {vuln['usage_pattern']}")
+                    if vuln['functions']:
+                        report.append(f"    Functions: {', '.join(['0x' + f for f in vuln['functions'][:3]])}")
+                    report.append("")
+        
+        # Cross-reference summary
+        if analysis.get('string_to_functions') or analysis.get('function_to_strings'):
+            report.append("-" * 80)
+            report.append("STRING CROSS-REFERENCE SUMMARY")
+            report.append("-" * 80)
+            
+            if analysis.get('string_to_functions'):
+                total_tracked = len(analysis['string_to_functions'])
+                report.append(f"Total strings with cross-references: {total_tracked}")
+            
+            if analysis.get('function_to_strings'):
+                total_funcs = len(analysis['function_to_strings'])
+                report.append(f"Total functions with string references: {total_funcs}")
+            
+            report.append("")
+            report.append("💡 Tip: Use generate_all_xrefs_report() for detailed cross-reference listing")
             report.append("")
         
         # Advanced analysis results

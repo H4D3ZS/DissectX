@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Function {{ function_id }} - DissectX{% endblock %}
+
+{% block content %}
+<div class="function-detail-page">
+    <div class="function-header">
+        <h1>Function Information</h1>
+    </div>
+
+    <div class="function-info-section">
+        <table class="function-info-table">
+            <tr>
+                <td class="info-label">Address</td>
+                <td class="info-value">{{ function_id }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">Name</td>
+                <td class="info-value">{{ function.name or 'sub_' + function_id }}</td>
+            </tr>
+            {% if function.size %}
+            <tr>
+                <td class="info-label">Size</td>
+                <td class="info-value">{{ function.size }} bytes</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    {% if function.instructions %}
+    <div class="function-section">
+        <h2 class="section-title">Disassembly</h2>
+        <div class="code-container">
+            <pre><code class="language-asm">{% for instr in function.instructions %}{{ instr.address }}:  {{ instr.mnemonic }} {{ instr.operands|join(', ') }}
+{% endfor %}</code></pre>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if function.pseudocode %}
+    <div class="function-section">
+        <h2 class="section-title">Pseudo-code</h2>
+        <div class="code-container">
+            <pre><code class="language-c">{{ function.pseudocode }}</code></pre>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if function.english_explanation %}
+    <div class="function-section">
+        <h2 class="section-title">English Explanation</h2>
+        <div class="explanation-container">
+            <pre>{{ function.english_explanation }}</pre>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -15,19 +15,19 @@ class AssemblyParser:
     def parse(self, assembly_text: str) -> List[Instruction]:
         """
         Parse assembly text into a list of Instruction objects.
-        
+
         Handles standalone labels by attaching them to the next instruction.
-        
+
         Args:
             assembly_text: Multi-line assembly code string
-            
+
         Returns:
             List of parsed Instruction objects
         """
         instructions = []
         lines = assembly_text.strip().split('\n')
         pending_label = None
-        
+
         for line in lines:
             instruction = self.parse_instruction(line)
             if instruction:
@@ -40,8 +40,43 @@ class AssemblyParser:
                         instruction.label = pending_label
                         pending_label = None
                     instructions.append(instruction)
-        
+
         return instructions
+
+    def quick_parse(self, assembly_text: str, limit: int = 10) -> tuple[List[Instruction], int]:
+        """
+        Quickly parse first N instructions for preview purposes.
+
+        Args:
+            assembly_text: Multi-line assembly code string
+            limit: Maximum number of instructions to parse (default: 10)
+
+        Returns:
+            Tuple of (parsed_instructions, total_lines)
+        """
+        instructions = []
+        lines = assembly_text.strip().split('\n')
+        total_lines = len(lines)
+        pending_label = None
+
+        for line in lines:
+            # Stop if we have enough instructions
+            if len(instructions) >= limit:
+                break
+
+            instruction = self.parse_instruction(line)
+            if instruction:
+                # If this is a label-only instruction, save it for the next real instruction
+                if instruction.mnemonic == '' and instruction.label:
+                    pending_label = instruction.label
+                else:
+                    # If we have a pending label, attach it to this instruction
+                    if pending_label:
+                        instruction.label = pending_label
+                        pending_label = None
+                    instructions.append(instruction)
+
+        return instructions, total_lines
     
     def parse_instruction(self, line: str) -> Optional[Instruction]:
         """
