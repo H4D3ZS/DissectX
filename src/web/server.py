@@ -773,7 +773,9 @@ class WebUIServer:
                 use_polymorph = request.args.get('polymorph', 'false').lower() == 'true'
                 auto_run = request.args.get('autorun', 'true').lower() == 'true'
                 
+                print(f"[DEBUG] About to call generate_exploit with offset={offset}, buffer_addr={hex(buffer_addr)}")
                 script = exploiter.generate_exploit(filepath, offset, buffer_addr, use_encoding, use_polymorph)
+                print(f"[DEBUG] generate_exploit returned, script length: {len(script)}")
                 
                 response_data = {
                     'offset': offset,
