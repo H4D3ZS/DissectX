@@ -22,3 +22,6 @@ ROPGadget>=7.4
 
 # Radare2 integration
 r2pipe>=1.8.0
+
+# Exploitation
+pwntools>=4.11.0

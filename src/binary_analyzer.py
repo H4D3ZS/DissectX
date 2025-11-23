@@ -2,14 +2,17 @@
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 
 # Import advanced detection modules
 try:
     from .detectors.syscall_detector import SyscallDetector
     from .detectors.api_hash_resolver import APIHashResolver
     from .detectors.junk_detector import JunkDetector
+    from .detectors.junk_detector import JunkDetector
     from .detectors.flag_finder import FlagFinder
+    from .detectors.checksec_detector import ChecksecDetector
+    from .detectors.vulnerability_detector import VulnerabilityDetector
     
     # Emulation and Memory Analysis
     from .emulation.unicorn_emulator import UnicornEmulator, UNICORN_AVAILABLE
@@ -51,7 +54,10 @@ class BinaryAnalyzer:
             self.syscall_detector = SyscallDetector()
             self.api_hash_resolver = APIHashResolver()
             self.junk_detector = JunkDetector()
+            self.junk_detector = JunkDetector()
             self.flag_finder = FlagFinder()
+            self.checksec_detector = ChecksecDetector()
+            self.vulnerability_detector = VulnerabilityDetector()
             
             # Initialize Emulation & Memory tools
             self.string_decryptor = StringDecryptor() if UNICORN_AVAILABLE else None
@@ -61,7 +67,10 @@ class BinaryAnalyzer:
             self.syscall_detector = None
             self.api_hash_resolver = None
             self.junk_detector = None
+            self.junk_detector = None
             self.flag_finder = None
+            self.checksec_detector = None
+            self.vulnerability_detector = None
             self.string_decryptor = None
             self.memory_parser = None
             self.memory_analyzer = None
@@ -136,7 +145,27 @@ class BinaryAnalyzer:
         # Fallback: check file extension
         path = Path(filepath)
         binary_extensions = {'.exe', '.dll', '.so', '.dylib', '.elf', '.bin', '.out'}
-        return path.suffix.lower() in binary_extensions
+        if path.suffix.lower() in binary_extensions:
+            return True
+            
+        # Fallback 2: Check magic bytes for extensionless files
+        try:
+            with open(filepath, 'rb') as f:
+                header = f.read(4)
+                # ELF magic: 7F 45 4C 46
+                if header.startswith(b'\x7fELF'):
+                    return True
+                # PE magic: 4D 5A (MZ)
+                if header.startswith(b'MZ'):
+                    return True
+                # Mach-O magic: FE ED FA CE / FE ED FA CF / CE FA ED FE / CF FA ED FE
+                if header in [b'\xfe\xed\xfa\xce', b'\xfe\xed\xfa\xcf', b'\xce\xfa\xed\xfe', b'\xcf\xfa\xed\xfe']:
+                    return True
+        except:
+            pass
+            
+        # Allow all file types as requested by user
+        return True
     
     def get_file_type(self, filepath: str) -> Optional[str]:
         """
@@ -796,20 +825,49 @@ class BinaryAnalyzer:
         report.append("=" * 80)
         
         return '\n'.join(report)
-    
-    def analyze_binary(self, filepath: str, advanced: bool = False, 
-                      emulate: bool = False, decrypt_strings: bool = False) -> Dict[str, any]:
+
+    def detect_security_mitigations(self, filepath: str) -> Dict[str, str]:
         """
-        Perform comprehensive binary analysis.
+        Detect security mitigations (Checksec).
         
         Args:
             filepath: Path to the binary file
-            advanced: Enable advanced detection (syscalls, API hashing, junk code)
-            emulate: Enable emulation features
-            decrypt_strings: Enable string decryption
             
         Returns:
-            Analysis results dictionary
+            Dictionary of security features
+        """
+        if self.checksec_detector:
+            return self.checksec_detector.check_security(filepath)
+        return {}
+
+    def detect_vulnerabilities(self, filepath: str) -> List[Dict[str, str]]:
+        """
+        Detect potential vulnerabilities.
+        
+        Args:
+            filepath: Path to the binary file
+            
+        Returns:
+            List of detected vulnerabilities
+        """
+        if self.vulnerability_detector:
+            return self.vulnerability_detector.scan(filepath)
+        return []
+
+    def analyze_binary(self, filepath: str, advanced: bool = False, emulate: bool = False, 
+                      decrypt_strings: bool = False, quick_mode: bool = False) -> Dict[str, Any]:
+        """
+        Perform comprehensive analysis on a binary file.
+        
+        Args:
+            filepath: Path to the binary file
+            advanced: Enable advanced detection modules
+            emulate: Enable emulation-based analysis
+            decrypt_strings: Attempt to decrypt strings
+            quick_mode: Skip heavy analysis steps (disassembly) for large files
+            
+        Returns:
+            Dictionary containing all analysis results
         """
         analysis = {
             'filepath': filepath,
@@ -823,6 +881,12 @@ class BinaryAnalyzer:
             'pe_sections': [],
             'packer': None,
             'base64_strings': [],
+            'string_to_functions': {},
+            'function_to_strings': {},
+            'string_usage_patterns': {},
+            'format_string_vulnerabilities': [],
+            'security_mitigations': {},
+            'vulnerabilities': [],
             'advanced_analysis': {}
         }
         
@@ -831,22 +895,17 @@ class BinaryAnalyzer:
         if not analysis['is_binary']:
             return analysis
         
-        # Get file type
+        # Basic file info
         analysis['file_type'] = self.get_file_type(filepath)
         
-        # Extract strings
-        all_strings = self.extract_strings(filepath)
-        analysis['all_strings'] = all_strings
-        analysis['string_count'] = len(all_strings)
-        
-        # Filter security-relevant strings
-        security_strings = self.filter_security_strings(all_strings)
-        analysis['security_strings'] = security_strings
-        analysis['security_string_count'] = len(security_strings)
-        
-        # Detect API calls
-        api_calls = self.detect_api_calls(all_strings)
-        analysis['api_calls'] = api_calls
+        # String extraction
+        strings = self.extract_strings(filepath)
+        analysis['all_strings'] = strings
+        analysis['string_count'] = len(strings)
+        analysis['security_strings'] = self.filter_security_strings(strings)
+        analysis['security_string_count'] = len(analysis['security_strings'])
+        analysis['base64_strings'] = self.detect_base64_strings(strings)
+        analysis['api_calls'] = self.detect_api_calls(strings)
         
         # Detect PE sections (for Windows executables)
         if 'PE' in str(analysis['file_type']):
@@ -857,64 +916,87 @@ class BinaryAnalyzer:
             packer = self.detect_packer(filepath, pe_sections)
             analysis['packer'] = packer
         
-        # Detect Base64 strings
-        base64_strings = self.detect_base64_strings(all_strings)
-        analysis['base64_strings'] = base64_strings
+        # Disassembly (Skip in quick_mode)
+        disassembly = None
+        if not quick_mode:
+            disassembly = self.disassemble_binary(filepath)
+            if disassembly:
+                self.extract_string_references_from_disassembly(disassembly, strings)
+                analysis['string_to_functions'] = self.string_to_functions
+                analysis['function_to_strings'] = self.function_to_strings
+                
+                # Classify string usage patterns
+                usage_classification = self.classify_string_usage(strings, disassembly)
+                analysis['string_usage_patterns'] = usage_classification
+                
+                # Detect format string vulnerabilities
+                format_string_vulns = self.detect_format_string_vulnerabilities(strings, usage_classification)
+                analysis['format_string_vulnerabilities'] = format_string_vulns
         
-        # Extract string-to-function mappings from disassembly
-        disassembly = self.disassemble_binary(filepath)
-        if disassembly:
-            self.extract_string_references_from_disassembly(disassembly, all_strings)
-            analysis['string_to_functions'] = self.string_to_functions
-            analysis['function_to_strings'] = self.function_to_strings
-            
-            # Classify string usage patterns
-            usage_classification = self.classify_string_usage(all_strings, disassembly)
-            analysis['string_usage_patterns'] = usage_classification
-            
-            # Detect format string vulnerabilities
-            format_string_vulns = self.detect_format_string_vulnerabilities(all_strings, usage_classification)
-            analysis['format_string_vulnerabilities'] = format_string_vulns
+        # Checksec (Security Mitigations)
+        analysis['security_mitigations'] = self.detect_security_mitigations(filepath)
+
+        # Vulnerability Scan
+        analysis['vulnerabilities'] = self.detect_vulnerabilities(filepath)
         
         # Advanced analysis (if enabled)
         if advanced and ADVANCED_DETECTORS_AVAILABLE:
+            advanced_results = {}
+            
             try:
                 with open(filepath, 'rb') as f:
                     binary_data = f.read()
-                
-                # Flag detection (always run for CTF binaries)
-                if self.flag_finder:
-                    flag_results = self.flag_finder.find_flags(binary_data, all_strings)
-                    analysis['advanced_analysis']['flags'] = flag_results
-                
-                # Syscall detection
-                if self.syscall_detector:
-                    syscall_results = self.syscall_detector.analyze(binary_data)
-                    analysis['advanced_analysis']['syscalls'] = syscall_results
-                
-                # API hash resolution
-                if self.api_hash_resolver:
-                    api_hash_results = self.api_hash_resolver.analyze(binary_data)
-                    analysis['advanced_analysis']['api_hashing'] = api_hash_results
-                
-                # Junk code detection
-                if self.junk_detector:
-                    junk_results = self.junk_detector.analyze(binary_data)
-                    analysis['advanced_analysis']['junk_code'] = junk_results
-                
-                # String Decryption (Emulation)
-                if self.string_decryptor and decrypt_strings:
-                    decrypted_strings = self.string_decryptor.detect_encrypted_strings(binary_data)
-                    analysis['advanced_analysis']['decrypted_strings'] = decrypted_strings
-                
-                # In-Memory PE Analysis (Static check on disk file as if it were memory)
-                if self.memory_parser:
+            except Exception as e:
+                advanced_results['error'] = f"Could not read binary data for advanced analysis: {e}"
+                analysis['advanced_analysis'] = advanced_results
+                return analysis
+
+            # Syscall detection (SyscallDetector scans raw bytes, so it's relatively fast)
+            if self.syscall_detector:
+                try:
+                    advanced_results['syscalls'] = self.syscall_detector.analyze(binary_data)
+                except Exception as e:
+                    print(f"Syscall detection error: {e}")
+            
+            # API Hash Resolution
+            if self.api_hash_resolver:
+                try:
+                    advanced_results['api_hashing'] = self.api_hash_resolver.analyze(binary_data)
+                except Exception as e:
+                    print(f"API hash resolution error: {e}")
+            
+            # Junk Code
+            if self.junk_detector:
+                try:
+                    advanced_results['junk_code'] = self.junk_detector.analyze(binary_data)
+                except Exception as e:
+                    print(f"Junk code detection error: {e}")
+            
+            # Flag Finding
+            if self.flag_finder:
+                try:
+                    # FlagFinder returns list of Flag objects, convert to dicts or strings
+                    flags = self.flag_finder.find_flags(binary_data, strings)
+                    advanced_results['flags'] = [f.value for f in flags]
+                except Exception as e:
+                    print(f"Flag finding error: {e}")
+            
+            # String Decryption (Emulation) - Skip in quick_mode as it's very slow
+            if decrypt_strings and self.string_decryptor and not quick_mode:
+                try:
+                    advanced_results['decrypted_strings'] = self.string_decryptor.detect_encrypted_strings(binary_data)
+                except Exception as e:
+                    print(f"String decryption error: {e}")
+            
+            # In-Memory PE Analysis (Static check on disk file as if it were memory)
+            if self.memory_parser:
+                try:
                     # Treat file content as memory dump for analysis
                     mem_analysis = self.memory_parser.parse_memory_dump(binary_data, base_addr=0x400000)
-                    analysis['advanced_analysis']['memory_pe'] = mem_analysis
-                    
-            except Exception as e:
-                analysis['advanced_analysis']['error'] = str(e)
+                    # analysis['advanced_analysis']['memory_pe'] = mem_analysis # Uncomment if needed
+                except Exception as e:
+                    # analysis['advanced_analysis']['error'] = str(e)
+                    pass
         
         return analysis
     
@@ -950,6 +1032,28 @@ class BinaryAnalyzer:
         # Packer detection
         if analysis.get('packer'):
             report.append(f"⚠️  Packer Detected: {analysis['packer']}")
+        
+        # Security Mitigations (Checksec)
+        if analysis.get('security_mitigations'):
+            report.append("-" * 80)
+            report.append("🛡️  SECURITY MITIGATIONS (CHECKSEC)")
+            report.append("-" * 80)
+            mitigations = analysis['security_mitigations']
+            for feature, status in mitigations.items():
+                icon = "✅" if status == 'Enabled' or status == 'Full' else "❌" if status == 'Disabled' else "⚠️"
+                report.append(f"{icon} {feature}: {status}")
+            report.append("")
+
+        # Vulnerabilities
+        if analysis.get('vulnerabilities'):
+            report.append("-" * 80)
+            report.append("🚨 POTENTIAL VULNERABILITIES DETECTED")
+            report.append("-" * 80)
+            for vuln in analysis['vulnerabilities']:
+                report.append(f"⚠️  Function: {vuln['function']}")
+                report.append(f"    Risk: {vuln['risk']}")
+                report.append(f"    Location: {vuln['location']}")
+                report.append("")
         
         report.append("")
         
