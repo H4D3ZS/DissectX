@@ -2,9 +2,23 @@ pytest>=7.4.0
 hypothesis>=6.82.0
 # Core dependencies
 pefile>=2023.2.7
+networkx>=3.0
 
 # Emulation dependencies (for advanced dynamic analysis)
 unicorn>=2.0.0
 capstone>=5.0.0
 
+# TUI dependencies
+textual>=0.41.0
+
+# Web UI dependencies
+flask>=3.0.0
+weasyprint>=60.0  # For PDF export
+
 pytest-cov>=4.1.0
+
+# ROP gadget finding
+ROPGadget>=7.4
+
+# Radare2 integration
+r2pipe>=1.8.0

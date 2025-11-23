@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - DissectX{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h1>DissectX Dashboard</h1>
+
+    {% if has_results %}
+    <div class="alert alert-success">
+        <h3>Analysis Results Available</h3>
+        <p>Binary analysis has been completed. Navigate to the sections below to explore the results.</p>
+        <a href="#upload-new" class="btn btn-primary" style="margin-top: 10px;">📤 Upload New Binary</a>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h3>Analysis Overview</h3>
+            <p>View comprehensive analysis results including binary information, architecture details, and more.</p>
+            <a href="/analysis" class="btn btn-primary">View Analysis</a>
+        </div>
+
+        <div class="dashboard-card">
+            <h3>Functions</h3>
+            <p>Browse all detected functions, their addresses, and relationships.</p>
+            <a href="/functions" class="btn btn-primary">View Functions</a>
+        </div>
+
+        <div class="dashboard-card">
+            <h3>Strings</h3>
+            <p>Explore extracted strings from the binary with context and usage information.</p>
+            <a href="/strings" class="btn btn-primary">View Strings</a>
+        </div>
+
+        <div class="dashboard-card">
+            <h3>Cross-References</h3>
+            <p>Analyze cross-references between functions, strings, and data.</p>
+            <a href="/xrefs" class="btn btn-primary">View XREFs</a>
+        </div>
+
+        <div class="dashboard-card">
+            <h3>Advanced Analysis</h3>
+            <p>Syscalls, API hashes, junk code detection, and more advanced features.</p>
+            <a href="/advanced" class="btn btn-primary">View Advanced</a>
+        </div>
+
+        <div class="dashboard-card">
+            <h3>Call Graph</h3>
+            <p>Interactive visualization of function call relationships and control flow.</p>
+            <a href="/graph" class="btn btn-primary">View Graph</a>
+        </div>
+    </div>
+
+    <!-- Upload New Binary Section -->
+    <div id="upload-new" class="upload-section" style="margin-top: 40px;">
+        <h2>Upload New Binary</h2>
+        <p>Analyze another binary file.</p>
+
+        <form id="uploadForm" enctype="multipart/form-data" style="margin-top: 20px;">
+            <input type="file" id="fileInputNew" name="file" accept=".exe,.elf,.bin,.dll,.so,*"
+                style="opacity: 0; position: absolute; z-index: -1;">
+            <label for="fileInputNew" class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Click to upload or drag & drop</div>
+                <div class="upload-hint">Supports .exe, .elf, .bin, .dll, .so and other binary formats</div>
+            </label>
+
+            <div class="file-info" id="fileInfo"
+                style="display: none; margin-top: 15px; padding: 15px; background: #2d2d30; border-radius: 8px;">
+                <div class="file-name" id="fileName" style="font-weight: 600; margin-bottom: 5px; color: #d4d4d4;">
+                </div>
+                <div class="file-size" id="fileSize" style="color: #858585; font-size: 0.9em;"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="analyzeBtn" disabled
+                style="margin-top: 15px; width: 100%;">
+                Analyze Binary
+            </button>
+
+            <div class="progress" id="progress"
+                style="display: none; margin-top: 15px; height: 6px; background: #3c3c3c; border-radius: 3px; overflow: hidden;">
+                <div class="progress-bar" id="progressBar"
+                    style="height: 100%; background: #007acc; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <div class="upload-section">
+        <h2>Upload Binary for Analysis</h2>
+        <p>Upload a binary file (.exe, .elf, .bin, etc.) to analyze it instantly.</p>
+
+        <form id="uploadForm" enctype="multipart/form-data" style="margin-top: 20px;">
+            <input type="file" id="fileInput" name="file" accept=".exe,.elf,.bin,.dll,.so,*"
+                style="opacity: 0; position: absolute; z-index: -1;">
+            <label for="fileInput" class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Click to upload or drag & drop</div>
+                <div class="upload-hint">Supports .exe, .elf, .bin, .dll, .so and other binary formats</div>
+            </label>
+
+            <div class="file-info" id="fileInfo"
+                style="display: none; margin-top: 15px; padding: 15px; background: #f0f8ff; border-radius: 8px;">
+                <div class="file-name" id="fileName" style="font-weight: 600; margin-bottom: 5px;"></div>
+                <div class="file-size" id="fileSize" style="color: #666; font-size: 0.9em;"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="analyzeBtn" disabled
+                style="margin-top: 15px; width: 100%;">
+                Analyze Binary
+            </button>
+
+            <div class="progress" id="progress"
+                style="display: none; margin-top: 15px; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden;">
+                <div class="progress-bar" id="progressBar"
+                    style="height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+        </form>
+
+        <div id="results" style="display: none; margin-top: 30px;"></div>
+    </div>
+
+    <style>
+        .upload-area {
+            display: block;
+            border: 3px dashed #007bff;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #0056b3;
+            background: #f0f4ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #0056b3;
+            background: #e8f0ff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #007bff;
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .result-item {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #007bff;
+        }
+
+        .result-label {
+            color: #007bff;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM loaded, initializing upload functionality');
+
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const uploadForm = document.getElementById('uploadForm');
+            const progress = document.getElementById('progress');
+            const progressBar = document.getElementById('progressBar');
+            const results = document.getElementById('results');
+
+            console.log('Upload elements:', { uploadArea, fileInput, uploadForm });
+
+            if (!uploadArea || !fileInput) {
+                console.error('Required upload elements not found!');
+                return;
+            }
+
+            let selectedFile = null;
+
+            // Click to upload
+            uploadArea.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Upload area clicked!');
+                console.log('Triggering file input click');
+                fileInput.click();
+            });
+
+            // Drag and drop
+            uploadArea.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function () {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function (e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+
+            // File input change
+            fileInput.addEventListener('change', function (e) {
+                console.log('File input changed');
+                if (e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+
+            function handleFile(file) {
+                console.log('Handling file:', file.name);
+                selectedFile = file;
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                fileInfo.style.display = 'block';
+                analyzeBtn.disabled = false;
+            }
+
+            function formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            }
+
+            // Form submission
+            uploadForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                if (!selectedFile) return;
+
+                analyzeBtn.disabled = true;
+                progress.style.display = 'block';
+                if (results) results.style.display = 'none';
+
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                try {
+                    // Simulate progress
+                    let progressValue = 0;
+                    const progressInterval = setInterval(function () {
+                        progressValue += 5;
+                        if (progressValue >= 90) {
+                            clearInterval(progressInterval);
+                        }
+                        progressBar.style.width = progressValue + '%';
+                    }, 100);
+
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    clearInterval(progressInterval);
+                    progressBar.style.width = '100%';
+
+                    const data = await response.json();
+
+                    setTimeout(function () {
+                        progress.style.display = 'none';
+                        displayResults(data);
+                        analyzeBtn.disabled = false;
+                    }, 500);
+
+                } catch (error) {
+                    alert('Error analyzing file: ' + error.message);
+                    progress.style.display = 'none';
+                    analyzeBtn.disabled = false;
+                }
+            });
+
+            function displayResults(data) {
+                if (data.error) {
+                    if (results) {
+                        results.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h3>Error</h3>
+                                <p>${data.error}</p>
+                            </div>
+                        `;
+                        results.style.display = 'block';
+                    }
+                } else if (data.success && data.redirect) {
+                    // Analysis complete! Redirect to dashboard to see full results
+                    if (results) {
+                        results.innerHTML = `
+                            <div class="alert alert-success">
+                                <h3>✅ Analysis Complete!</h3>
+                                <p>Redirecting to dashboard...</p>
+                            </div>
+                        `;
+                        results.style.display = 'block';
+                    }
+
+                    // Redirect after a short delay
+                    setTimeout(function () {
+                        window.location.href = data.redirect;
+                    }, 1000);
+                }
+            }
+        });
+    </script>
+    {% endif %}
+
+    <!-- Upload functionality JavaScript - Always loaded -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM loaded, initializing upload functionality');
+
+            // Find ALL upload areas and file inputs (there might be duplicates)
+            const uploadAreas = document.querySelectorAll('.upload-area');
+            const fileInputs = document.querySelectorAll('input[type="file"]');
+
+            console.log(`Found ${uploadAreas.length} upload areas and ${fileInputs.length} file inputs`);
+
+            if (uploadAreas.length === 0 || fileInputs.length === 0) {
+                console.error('No upload elements found!');
+                return;
+            }
+
+            // Attach click handlers to ALL upload areas
+            uploadAreas.forEach((uploadArea, index) => {
+                const fileInput = fileInputs[index] || fileInputs[0]; // Use corresponding input or first one
+                const form = uploadArea.closest('form');
+
+                if (!form) {
+                    console.error('Upload area has no parent form');
+                    return;
+                }
+
+                const fileInfo = form.querySelector('.file-info') || document.getElementById('fileInfo');
+                const fileName = form.querySelector('.file-name') || document.getElementById('fileName');
+                const fileSize = form.querySelector('.file-size') || document.getElementById('fileSize');
+                const analyzeBtn = form.querySelector('button[type="submit"]') || document.getElementById('analyzeBtn');
+                const progress = form.querySelector('.progress') || document.getElementById('progress');
+                const progressBar = form.querySelector('.progress-bar') || document.getElementById('progressBar');
+                const results = document.getElementById('results');
+
+                let selectedFile = null;
+
+                console.log(`Setting up upload area ${index}:`, { uploadArea, fileInput, form });
+
+                // Click to upload - REMOVED because <label> handles it natively
+                // uploadArea.addEventListener('click', ...);
+
+                // Drag and drop
+                uploadArea.addEventListener('dragover', function (e) {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                });
+
+                uploadArea.addEventListener('dragleave', function () {
+                    uploadArea.classList.remove('dragover');
+                });
+
+                uploadArea.addEventListener('drop', function (e) {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        handleFile(files[0]);
+                    }
+                });
+
+                // File input change
+                fileInput.addEventListener('change', function (e) {
+                    console.log(`File input ${index} changed`);
+                    if (e.target.files.length > 0) {
+                        handleFile(e.target.files[0]);
+                    }
+                });
+
+                function handleFile(file) {
+                    console.log('Handling file:', file.name);
+                    selectedFile = file;
+                    if (fileName) fileName.textContent = file.name;
+                    if (fileSize) fileSize.textContent = formatFileSize(file.size);
+                    if (fileInfo) fileInfo.style.display = 'block';
+                    if (analyzeBtn) analyzeBtn.disabled = false;
+                }
+
+                function formatFileSize(bytes) {
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                }
+
+                // Form submission
+                form.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+
+                    if (!selectedFile) return;
+
+                    if (analyzeBtn) analyzeBtn.disabled = true;
+                    if (progress) progress.style.display = 'block';
+                    if (results) results.style.display = 'none';
+
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+
+                    try {
+                        // Simulate progress
+                        let progressValue = 0;
+                        const progressInterval = setInterval(function () {
+                            progressValue += 5;
+                            if (progressValue >= 90) {
+                                clearInterval(progressInterval);
+                            }
+                            if (progressBar) progressBar.style.width = progressValue + '%';
+                        }, 100);
+
+                        const response = await fetch('/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        clearInterval(progressInterval);
+                        if (progressBar) progressBar.style.width = '100%';
+
+                        const data = await response.json();
+
+                        setTimeout(function () {
+                            if (progress) progress.style.display = 'none';
+                            displayResults(data);
+                            if (analyzeBtn) analyzeBtn.disabled = false;
+                        }, 500);
+
+                    } catch (error) {
+                        alert('Error analyzing file: ' + error.message);
+                        if (progress) progress.style.display = 'none';
+                        if (analyzeBtn) analyzeBtn.disabled = false;
+                    }
+                });
+
+                function displayResults(data) {
+                    if (data.error) {
+                        if (results) {
+                            results.innerHTML = `
+                                <div class="alert alert-danger">
+                                    <h3>Error</h3>
+                                    <p>${data.error}</p>
+                                </div>
+                            `;
+                            results.style.display = 'block';
+                        }
+                    } else if (data.success && data.redirect) {
+                        // Analysis complete! Redirect to dashboard to see full results
+                        if (results) {
+                            results.innerHTML = `
+                                <div class="alert alert-success">
+                                    <h3>✅ Analysis Complete!</h3>
+                                    <p>Redirecting to dashboard...</p>
+                                </div>
+                            `;
+                            results.style.display = 'block';
+                        }
+
+                        // Redirect after a short delay
+                        setTimeout(function () {
+                            window.location.href = data.redirect;
+                        }, 1000);
+                    }
+                }
+            });
+        });
+    </script>
+
+    <div class="features-section">
+        <h2>Features</h2>
+        <ul class="features-list">
+            <li>Multi-architecture support (x86, ARM, MIPS)</li>
+            <li>Interactive code navigation</li>
+            <li>Syntax highlighting</li>
+            <li>Cross-reference analysis</li>
+            <li>Export to HTML and PDF</li>
+            <li>Search functionality</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

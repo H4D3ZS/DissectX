@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Strings - DissectX{% endblock %}
+
+{% block content %}
+<div class="strings-page">
+    <h1>Extracted Strings</h1>
+    
+    <div class="search-bar">
+        <input type="text" id="string-search" placeholder="Search strings..." class="search-input">
+    </div>
+    
+    {% if strings %}
+    <div class="section">
+        <p>Total strings: <strong>{{ strings|length }}</strong></p>
+        
+        <table class="data-table" id="strings-table">
+            <thead>
+                <tr>
+                    <th>String</th>
+                    <th>Address</th>
+                    <th>Length</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for string in strings %}
+                <tr>
+                    <td>
+                        <code class="string-value">
+                            {% if string is string %}
+                            {{ string[:100] }}{% if string|length > 100 %}...{% endif %}
+                            {% else %}
+                            {{ string.value[:100] }}{% if string.value|length > 100 %}...{% endif %}
+                            {% endif %}
+                        </code>
+                    </td>
+                    <td>
+                        {% if string is string %}
+                        -
+                        {% else %}
+                        <code>{{ string.address or '-' }}</code>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if string is string %}
+                        {{ string|length }}
+                        {% else %}
+                        {{ string.value|length }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <p>No strings extracted from the binary.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('string-search').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#strings-table tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

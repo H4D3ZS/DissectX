@@ -1,0 +1,17 @@
+# Linux-specific requirements for DissectX
+# Install with: pip install -r requirements-linux.txt
+
+# Include base requirements
+-r requirements.txt
+
+# Linux-specific optimizations
+# (Most dependencies work the same on Linux)
+
+# Optional: System-level packages (install via apt/yum/dnf)
+# python3-dev
+# build-essential
+# libffi-dev
+# libssl-dev
+# libpango-1.0-0 (for WeasyPrint PDF generation)
+# libpangocairo-1.0-0 (for WeasyPrint PDF generation)
+# libgdk-pixbuf2.0-0 (for WeasyPrint PDF generation)

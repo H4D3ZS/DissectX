@@ -1,0 +1,31 @@
+include README.md
+include LICENSE
+include requirements.txt
+include setup.py
+include setup.cfg
+include pytest.ini
+
+# Include documentation
+recursive-include docs *.md
+
+# Include plugins
+recursive-include plugins *.py
+include plugins/README.md
+
+# Include test data manifests (but not large binaries)
+include tests/test_data/README.md
+include tests/test_data/MANIFEST.md
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.dylib
+global-exclude .coverage
+global-exclude htmlcov
+prune .git
+prune .github
+prune htmlcov
+prune venv
+prune .pytest_cache
