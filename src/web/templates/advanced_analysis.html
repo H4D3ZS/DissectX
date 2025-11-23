@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Advanced Analysis - DissectX{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="page-title">Advanced Analysis</h1>
+
+    <!-- Syscalls Section -->
+    <div class="function-section">
+        <h2 class="section-title">System Calls Detected</h2>
+        {% if advanced.syscalls %}
+        <div class="code-container">
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Syscall</th>
+                        <th>Address</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for syscall in advanced.syscalls %}
+                    <tr>
+                        <td><code>{{ syscall.name }}</code></td>
+                        <td><code>{{ syscall.address }}</code></td>
+                        <td>{{ syscall.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="no-data">No syscalls detected</p>
+        {% endif %}
+    </div>
+
+    <!-- API Hashes Section -->
+    <div class="function-section">
+        <h2 class="section-title">Resolved API Hashes</h2>
+        {% if advanced.api_hashes %}
+        <div class="code-container">
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Hash Value</th>
+                        <th>Resolved API</th>
+                        <th>Library</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for hash in advanced.api_hashes %}
+                    <tr>
+                        <td><code>{{ hash.hash }}</code></td>
+                        <td><code>{{ hash.api_name }}</code></td>
+                        <td>{{ hash.library }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="no-data">No API hashes detected</p>
+        {% endif %}
+    </div>
+
+    <!-- Junk Code Section -->
+    <div class="function-section">
+        <h2 class="section-title">Junk Code Patterns</h2>
+        {% if advanced.junk_patterns %}
+        <div class="code-container">
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Pattern Type</th>
+                        <th>Address</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pattern in advanced.junk_patterns %}
+                    <tr>
+                        <td><code>{{ pattern.type }}</code></td>
+                        <td><code>{{ pattern.address }}</code></td>
+                        <td>{{ pattern.confidence }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="no-data">No junk code patterns detected</p>
+        {% endif %}
+    </div>
+
+    <!-- Advanced Flags Section -->
+    <div class="function-section">
+        <h2 class="section-title">Advanced Flags</h2>
+        {% if advanced.advanced_flags %}
+        <div class="code-container">
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Flag</th>
+                        <th>Location</th>
+                        <th>Method</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for flag in advanced.advanced_flags %}
+                    <tr>
+                        <td><code>{{ flag.value }}</code></td>
+                        <td>{{ flag.location }}</td>
+                        <td>{{ flag.method }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="no-data">No advanced flags found</p>
+        {% endif %}
+    </div>
+
+    <!-- Decrypted Strings Section -->
+    <div class="function-section">
+        <h2 class="section-title">Decrypted Strings</h2>
+        {% if advanced.decrypted_strings %}
+        <div class="code-container">
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Encrypted</th>
+                        <th>Decrypted</th>
+                        <th>Algorithm</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for string in advanced.decrypted_strings %}
+                    <tr>
+                        <td><code>{{ string.encrypted }}</code></td>
+                        <td><code>{{ string.decrypted }}</code></td>
+                        <td>{{ string.algorithm }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="no-data">No encrypted strings detected</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Functions - DissectX{% endblock %}
+
+{% block content %}
+<div class="functions-page">
+    <h1>Functions</h1>
+    
+    <div class="search-bar">
+        <input type="text" id="function-search" placeholder="Search functions..." class="search-input">
+    </div>
+    
+    {% if functions %}
+    <div class="section">
+        <p>Total functions: <strong>{{ functions|length }}</strong></p>
+        
+        <table class="data-table" id="functions-table">
+            <thead>
+                <tr>
+                    <th>Address</th>
+                    <th>Name</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for func_id, func_data in functions.items() %}
+                <tr>
+                    <td><code>{{ func_id }}</code></td>
+                    <td>
+                        {% if func_data.name %}
+                        {{ func_data.name }}
+                        {% else %}
+                        sub_{{ func_id }}
+                        {% endif %}
+                    </td>
+                    <td>{{ func_data.size or 'Unknown' }}</td>
+                    <td>
+                        <a href="/function/{{ func_id }}" class="btn btn-sm btn-primary">View Details</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <p>No functions detected in the analysis.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('function-search').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#functions-table tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

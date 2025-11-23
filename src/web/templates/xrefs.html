@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Cross-References - DissectX{% endblock %}
+
+{% block content %}
+<div class="xrefs-page">
+    <h1>Cross-References</h1>
+    
+    {% if xrefs %}
+    <div class="section">
+        <h2>Function Calls</h2>
+        {% if xrefs.function_calls %}
+        <p>Tracking {{ xrefs.function_calls|length }} function call relationships</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Caller</th>
+                    <th>Calls To</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for caller, callees in xrefs.function_calls.items() %}
+                <tr>
+                    <td><a href="/function/{{ caller }}"><code>{{ caller }}</code></a></td>
+                    <td>
+                        {% for callee in callees %}
+                        <a href="/function/{{ callee }}"><code>{{ callee }}</code></a>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No function call relationships tracked.</p>
+        {% endif %}
+    </div>
+    
+    <div class="section">
+        <h2>String References</h2>
+        {% if xrefs.string_refs %}
+        <p>Tracking {{ xrefs.string_refs|length }} string references</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>String</th>
+                    <th>Referenced By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for string, refs in xrefs.string_refs.items() %}
+                <tr>
+                    <td><code class="string-value">{{ string[:80] }}{% if string|length > 80 %}...{% endif %}</code></td>
+                    <td>
+                        {% for ref in refs %}
+                        <a href="/function/{{ ref }}"><code>{{ ref }}</code></a>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No string references tracked.</p>
+        {% endif %}
+    </div>
+    
+    {% if xrefs.data_refs %}
+    <div class="section">
+        <h2>Data References</h2>
+        <p>Tracking {{ xrefs.data_refs|length }} data references</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Data Address</th>
+                    <th>Referenced By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for data_addr, refs in xrefs.data_refs.items() %}
+                <tr>
+                    <td><code>{{ data_addr }}</code></td>
+                    <td>
+                        {% for ref in refs %}
+                        <code>{{ ref }}</code>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-info">
+        <p>No cross-reference data available.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

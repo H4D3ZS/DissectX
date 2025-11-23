@@ -1,0 +1,19 @@
+# Windows-specific requirements for DissectX
+# Install with: pip install -r requirements-windows.txt
+
+# Include base requirements
+-r requirements.txt
+
+# Windows-specific notes:
+# - Some packages may require Visual C++ Build Tools
+# - WeasyPrint may not work properly on Windows (use HTML export instead or WSL)
+# - For best experience, consider using Windows Subsystem for Linux (WSL)
+
+# Windows-specific alternatives (if needed)
+# pywin32>=305  # For Windows-specific functionality (optional)
+
+# Note: If you encounter issues with Unicorn or Capstone on Windows:
+# 1. Install Visual C++ Build Tools from:
+#    https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# 2. Or use pre-built wheels from: https://www.lfd.uci.edu/~gohlke/pythonlibs/
+# 3. Or use Windows Subsystem for Linux (WSL) - recommended

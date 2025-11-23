@@ -1,0 +1,14 @@
+# macOS-specific requirements for DissectX
+# Install with: pip install -r requirements-macos.txt
+
+# Include base requirements
+-r requirements.txt
+
+# macOS-specific notes:
+# - All dependencies should work natively on both Intel and Apple Silicon
+# - For Apple Silicon (M1/M2/M3), all packages have ARM64 wheels
+# - If you encounter issues, you can use Rosetta 2: arch -x86_64 pip install -r requirements.txt
+
+# Optional: System-level packages (install via Homebrew)
+# brew install libffi openssl
+# brew install pango gdk-pixbuf libffi (for WeasyPrint PDF generation)

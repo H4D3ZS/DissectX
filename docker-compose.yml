@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  dissectx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dissectx:latest
+    container_name: dissectx
+    volumes:
+      # Mount current directory as workspace
+      - ./:/workspace
+      # Persist analysis results
+      - dissectx-data:/root/.dissectx
+    ports:
+      # Web UI port
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Override entrypoint for interactive shell
+    # Uncomment the following lines to start with bash
+    # entrypoint: /bin/bash
+    # stdin_open: true
+    # tty: true
+
+  # Web UI service (for dedicated web server)
+  dissectx-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dissectx:latest
+    container_name: dissectx-web
+    volumes:
+      - ./:/workspace
+      - dissectx-data:/root/.dissectx
+    ports:
+      - "8080:8080"
+    command: ["demo_web_ui.py", "/workspace/binary.exe"]
+    profiles:
+      - web
+
+volumes:
+  dissectx-data:
+    driver: local

@@ -1,0 +1,815 @@
+"""Flask web server for DissectX Web UI"""
+import os
+import json
+from pathlib import Path
+from typing import Dict, Any, Optional
+from flask import Flask, render_template, request, jsonify, send_file, Response
+import tempfile
+
+# Try to import WeasyPrint for PDF export
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
+
+
+class WebUIServer:
+    """Web-based user interface server for binary analysis results"""
+    
+    def __init__(self, analysis_results: Optional[Dict[str, Any]] = None):
+        """
+        Initialize the Web UI server.
+        
+        Args:
+            analysis_results: Dictionary containing analysis results
+        """
+        self.app = Flask(__name__, 
+                        template_folder=self._get_template_folder(),
+                        static_folder=self._get_static_folder())
+        self.analysis_results = analysis_results or {}
+        self.port = 8080
+        
+        # Register routes
+        self._register_routes()
+    
+    def _get_template_folder(self) -> str:
+        """Get the path to the templates folder"""
+        return str(Path(__file__).parent / 'templates')
+    
+    def _get_static_folder(self) -> str:
+        """Get the path to the static folder"""
+        return str(Path(__file__).parent / 'static')
+    
+    def _generate_english_explanation(self, function_id, instructions, pseudocode):
+        """Generate a plain English explanation of what the function does"""
+        explanation_parts = []
+        
+        # Analyze the instructions to understand what the function does
+        has_stack_setup = False
+        has_function_calls = False
+        has_comparisons = False
+        has_loops = False
+        has_memory_ops = False
+        called_functions = []
+        
+        for instr in instructions:
+            mnemonic = instr.mnemonic.lower() if instr.mnemonic else ""
+            
+            # Check for stack setup (function prologue)
+            if mnemonic in ['push', 'sub'] and 'rsp' in str(instr.operands).lower():
+                has_stack_setup = True
+            
+            # Check for function calls
+            if mnemonic == 'call':
+                has_function_calls = True
+                if instr.operands:
+                    called_functions.append(str(instr.operands[0]))
+            
+            # Check for comparisons/conditionals
+            if mnemonic in ['cmp', 'test', 'je', 'jne', 'jg', 'jl', 'jge', 'jle']:
+                has_comparisons = True
+            
+            # Check for loops
+            if mnemonic in ['jmp', 'loop']:
+                has_loops = True
+            
+            # Check for memory operations
+            if mnemonic in ['mov', 'lea', 'load', 'store']:
+                has_memory_ops = True
+        
+        # Build the explanation
+        explanation_parts.append(f"This function at address {function_id}:")
+        
+        if has_stack_setup:
+            explanation_parts.append("• Sets up a stack frame for local variables")
+        
+        if has_memory_ops:
+            explanation_parts.append("• Performs memory operations (reading/writing data)")
+        
+        if has_comparisons:
+            explanation_parts.append("• Contains conditional logic (if/else statements)")
+        
+        if has_loops:
+            explanation_parts.append("• Contains loops or jumps")
+        
+        if has_function_calls:
+            explanation_parts.append(f"• Calls {len(set(called_functions))} other function(s)")
+            if called_functions[:3]:  # Show first 3
+                explanation_parts.append(f"  - Examples: {', '.join(called_functions[:3])}")
+        
+        # Analyze pseudocode for additional context
+        if pseudocode:
+            if 'return' in pseudocode.lower():
+                explanation_parts.append("• Returns a value to the caller")
+            if 'void' in pseudocode.lower():
+                explanation_parts.append("• Does not return a value (void function)")
+        
+        if not explanation_parts or len(explanation_parts) == 1:
+            explanation_parts.append("• Performs basic operations")
+        
+        return "\n".join(explanation_parts)
+    
+    def _register_routes(self):
+        """Register all Flask routes"""
+        
+        @self.app.route('/')
+        def index():
+            """Main dashboard page"""
+            return render_template('index.html', 
+                                 has_results=bool(self.analysis_results))
+        
+        @self.app.route('/analysis')
+        def analysis():
+            """Analysis results page"""
+            if not self.analysis_results:
+                return render_template('error.html', 
+                                     error="No analysis results available")
+            
+            return render_template('analysis.html', 
+                                 results=self.analysis_results)
+        
+        @self.app.route('/functions')
+        def functions():
+            """Functions listing page"""
+            functions_data = self.analysis_results.get('functions', {})
+            return render_template('functions.html', 
+                                 functions=functions_data)
+        
+        @self.app.route('/advanced')
+        def advanced_analysis():
+            """Advanced detection results page"""
+            advanced_data = self.analysis_results.get('advanced_analysis', {})
+            return render_template('advanced_analysis.html', 
+                                 advanced=advanced_data)
+        
+        @self.app.route('/graph')
+        def call_graph():
+            """Interactive call graph visualization"""
+            graph_data = self.analysis_results.get('call_graph', {})
+            return render_template('graph.html', 
+                                 graph=graph_data)
+        
+        @self.app.route('/function/<function_id>')
+        def function_detail(function_id):
+            """Detailed view of a specific function"""
+            functions_data = self.analysis_results.get('functions', {})
+            function = functions_data.get(function_id)
+            
+            if not function:
+                return render_template('error.html', 
+                                     error=f"Function {function_id} not found")
+            
+            # Generate pseudocode and extract instructions on-demand if not already present
+            if 'pseudocode' not in function or function.get('pseudocode') is None:
+                disassembly = self.analysis_results.get('disassembly')
+                if disassembly:
+                    try:
+                        from src.decompiler import Decompiler
+                        from src.parser import AssemblyParser
+                        
+                        parser = AssemblyParser()
+                        decompiler = Decompiler()
+                        
+                        # Parse the entire disassembly
+                        instructions = parser.parse(disassembly)
+                        
+                        if instructions:
+                            # DEBUG: Log what we're working with
+                            print(f"[DEBUG] Function ID: {function_id}")
+                            print(f"[DEBUG] Total instructions parsed: {len(instructions)}")
+                            
+                            # Count how many have addresses
+                            with_addr = sum(1 for i in instructions if i.address is not None)
+                            print(f"[DEBUG] Instructions with addresses: {with_addr}/{len(instructions)}")
+                            
+                            if instructions and instructions[0].address:
+                                print(f"[DEBUG] First instruction address: {instructions[0].address}")
+                            if instructions and instructions[-1].address:
+                                print(f"[DEBUG] Last instruction address: {instructions[-1].address}")
+                            
+                            # Extract address for matching
+                            func_addr_clean = function_id.strip().lower().replace('0x', '')
+                            
+                            # Find the starting instruction that matches our function address
+                            start_idx = None
+                            for i, instr in enumerate(instructions):
+                                if instr.address:
+                                    instr_addr = str(instr.address).lower().replace('0x', '').strip()
+                                    
+                                    # Check if this instruction's address matches our function
+                                    if (func_addr_clean in instr_addr or
+                                        instr_addr in func_addr_clean or
+                                        (len(func_addr_clean) >= 6 and len(instr_addr) >= 6 and
+                                         func_addr_clean[-6:] in instr_addr) or
+                                        (len(func_addr_clean) >= 4 and len(instr_addr) >= 4 and
+                                         func_addr_clean[-4:] == instr_addr[-4:])):
+                                        start_idx = i
+                                        print(f"[DEBUG] Found function start at index {i}, address: {instr.address}")
+                                        break
+                            
+                            function_instructions = []
+                            
+                            if start_idx is not None:
+                                # Found the function start, now collect all instructions until next function
+                                # or until we see a significant address jump
+                                last_addr = None
+                                for i in range(start_idx, len(instructions)):
+                                    instr = instructions[i]
+                                    
+                                    # Check if we've hit a new function boundary
+                                    # (significant address jump or explicit function marker)
+                                    if instr.address and last_addr:
+                                        try:
+                                            curr_addr_int = int(str(instr.address).replace('0x', ''), 16)
+                                            last_addr_int = int(str(last_addr).replace('0x', ''), 16)
+                                            
+                                            # If address jumped by more than 0x1000 (4096 bytes), likely a new function
+                                            if curr_addr_int - last_addr_int > 0x1000:
+                                                print(f"[DEBUG] Address jump detected at index {i}, stopping")
+                                                break
+                                        except (ValueError, TypeError):
+                                            pass
+                                    
+                                    function_instructions.append(instr)
+                                    
+                                    if instr.address:
+                                        last_addr = instr.address
+                                    
+                                    # Primary limit: 20 instructions for display
+                                    if len(function_instructions) >= 20:
+                                        print(f"[DEBUG] Reached 20 instruction display limit")
+                                        break
+                                    
+                                    # Safety limit: don't include more than 500 instructions
+                                    if len(function_instructions) >= 500:
+                                        print(f"[DEBUG] Hit 500 instruction safety limit")
+                                        break
+                                
+                                print(f"[DEBUG] Extracted {len(function_instructions)} instructions for function")
+                            else:
+                                # Couldn't find function start, use first 20 instructions as fallback
+                                print(f"[DEBUG] Could not find function start, using first 20 instructions")
+                                function_instructions = instructions[:20]
+                            
+                            if function_instructions:
+                                # Store the instructions for display
+                                function['instructions'] = function_instructions
+                                
+                                # Generate pseudocode
+                                pseudocode = decompiler.decompile_function(function_instructions)
+                                function['pseudocode'] = pseudocode
+                                print(f"[DEBUG] Generated pseudocode: {len(pseudocode) if pseudocode else 0} chars")
+                                
+                                # Generate English explanation
+                                english_explanation = self._generate_english_explanation(
+                                    function_id, 
+                                    function_instructions, 
+                                    pseudocode
+                                )
+                                function['english_explanation'] = english_explanation
+                                print(f"[DEBUG] Generated English explanation: {len(english_explanation) if english_explanation else 0} chars")
+                            else:
+                                function['instructions'] = []
+                                function['pseudocode'] = None
+                                function['english_explanation'] = None
+                    except Exception as e:
+                        # If generation fails, set to None
+                        function['instructions'] = []
+                        function['pseudocode'] = None
+            
+            return render_template('function_detail.html', 
+                                 function_id=function_id,
+                                 function=function)
+        
+        @self.app.route('/strings')
+        def strings():
+            """Strings listing page"""
+            strings_data = self.analysis_results.get('strings', [])
+            return render_template('strings.html', 
+                                 strings=strings_data)
+        
+        @self.app.route('/xrefs')
+        def xrefs():
+            """Cross-references page"""
+            xrefs_data = self.analysis_results.get('xrefs', {})
+            return render_template('xrefs.html', 
+                                 xrefs=xrefs_data)
+        
+        @self.app.route('/api/results')
+        def api_results():
+            """API endpoint to get analysis results as JSON"""
+            return jsonify(self.analysis_results)
+        
+        @self.app.route('/upload', methods=['POST'])
+        def upload():
+            """Handle binary file upload and trigger analysis"""
+            if 'file' not in request.files:
+                return jsonify({'error': 'No file provided'}), 400
+            
+            file = request.files['file']
+            
+            if file.filename == '':
+                return jsonify({'error': 'No file selected'}), 400
+            
+            try:
+                # Save the uploaded file to a temporary location
+                upload_dir = Path(tempfile.gettempdir()) / 'dissectx_uploads'
+                upload_dir.mkdir(exist_ok=True)
+                
+                file_path = upload_dir / file.filename
+                file.save(str(file_path))
+                
+                # Import the analyzer
+                from src.binary_analyzer import BinaryAnalyzer
+                
+                # Create analyzer and analyze the binary
+                analyzer = BinaryAnalyzer()
+                # Enable all advanced features
+                raw_results = analyzer.analyze_binary(
+                    str(file_path), 
+                    advanced=True, 
+                    emulate=True, 
+                    decrypt_strings=True
+                )
+                
+                # Extract key data
+                strings = raw_results.get('all_strings', [])
+                security_strings = raw_results.get('security_strings', [])
+                base64_strings = raw_results.get('base64_strings', [])
+                api_calls = raw_results.get('api_calls', {})
+                file_type = raw_results.get('file_type', 'Unknown')
+                
+                # Advanced analysis data
+                advanced_data = raw_results.get('advanced_analysis', {})
+                syscalls = advanced_data.get('syscalls', [])
+                api_hashes = advanced_data.get('api_hashing', [])
+                junk_patterns = advanced_data.get('junk_code', [])
+                flags = advanced_data.get('flags', [])
+                decrypted_strings = advanced_data.get('decrypted_strings', [])
+                
+                # Combine flags
+                advanced_flags = []
+                if flags:
+                    for flag in flags:
+                        advanced_flags.append({
+                            'type': 'PlainText',
+                            'value': flag,
+                            'confidence': 'High'
+                        })
+                
+                # Disassembly and Call Graph
+                disassembly = analyzer.disassemble_binary(str(file_path))
+                
+                # CALL GRAPH GENERATION
+                call_graph_data = {}
+                functions = {}
+                
+                if disassembly:
+                    try:
+                        from src.call_graph_generator import CallGraphGenerator
+                        from src.parser import AssemblyParser
+                        
+                        # Parse instructions
+                        parser = AssemblyParser()
+                        instructions = parser.parse(disassembly)
+                        
+                        # Build call graph
+                        cg_generator = CallGraphGenerator()
+                        call_graph = cg_generator.build_graph(instructions)
+                        
+                        # Build detailed function information
+                        function_details = {}
+                        for func_addr in call_graph.get_all_functions():
+                            # Get callers and callees
+                            callers = call_graph.get_callers(func_addr)
+                            callees = call_graph.get_callees(func_addr)
+                            
+                            # Determine function type
+                            is_entry = func_addr in call_graph.entry_points
+                            is_recursive = func_addr in call_graph.recursive_functions
+                            is_dead = func_addr in call_graph.dead_code
+                            
+                            # Get function strings if available
+                            func_strings = []
+                            if analyzer.function_to_strings and hex(func_addr) in analyzer.function_to_strings:
+                                func_strings = analyzer.function_to_strings[hex(func_addr)]
+                            
+                            # Generate explanation
+                            explanation = []
+                            if is_entry: explanation.append("🚀 ENTRY POINT")
+                            if is_recursive: explanation.append("🔄 RECURSIVE")
+                            if is_dead: explanation.append("💀 DEAD CODE")
+                            
+                            if callees:
+                                explanation.append(f"Calls {len(callees)} function(s)")
+                            else:
+                                explanation.append("Leaf function")
+                                
+                            if func_strings:
+                                explanation.append(f"References {len(func_strings)} string(s)")
+                            
+                            function_details[hex(func_addr)] = {
+                                'address': hex(func_addr),
+                                'is_entry': is_entry,
+                                'is_recursive': is_recursive,
+                                'is_dead': is_dead,
+                                'callers': [hex(c) for c in callers],
+                                'callees': [hex(c) for c in callees],
+                                'caller_count': len(callers),
+                                'callee_count': len(callees),
+                                'strings': func_strings[:5],
+                                'explanation': '\n'.join(explanation)
+                            }
+                        
+                        # Export call graph data
+                        call_graph_data = {
+                            'entry_points': [hex(addr) for addr in sorted(call_graph.entry_points)],
+                            'recursive_functions': [hex(addr) for addr in sorted(call_graph.recursive_functions)],
+                            'dead_code': [hex(addr) for addr in sorted(call_graph.dead_code)],
+                            'mermaid': cg_generator.export_mermaid(),
+                            'ascii': cg_generator.export_ascii(),
+                            'total_functions': len(call_graph.get_all_functions()),
+                            'total_calls': call_graph.graph.number_of_edges(),
+                            'function_details': function_details
+                        }
+                        
+                        # Build functions dict for listing
+                        if analyzer.function_to_strings:
+                            for func_addr, func_strings in analyzer.function_to_strings.items():
+                                functions[func_addr] = {
+                                    'name': f'sub_{func_addr}',
+                                    'strings': func_strings,
+                                    'string_count': len(func_strings)
+                                }
+                                
+                    except Exception as e:
+                        print(f"Call graph generation failed: {e}")
+                
+                # Construct the full analysis results dictionary
+                self.analysis_results = {
+                    'binary_info': {
+                        'filename': file.filename,
+                        'filepath': str(file_path),
+                        'file_type': file_type,
+                        'architecture': 'x86_64' if '64' in file_type else 'x86', # Simple heuristic
+                        'format': 'PE' if 'PE' in file_type else 'ELF' if 'ELF' in file_type else 'Unknown',
+                        'total_strings': len(strings),
+                        'security_strings': len(security_strings),
+                        'base64_strings': len(base64_strings)
+                    },
+                    'strings': [
+                        {'value': s, 'address': 'N/A'} for s in strings[:500]
+                    ],
+                    'security_strings': [
+                        {'value': s, 'address': 'N/A'} for s in security_strings
+                    ],
+                    'base64_strings': base64_strings,
+                    'api_calls': api_calls,
+                    'flags': flags,
+                    'functions': functions,
+                    'xrefs': {
+                        'string_refs': analyzer.string_to_functions,
+                        'function_strings': analyzer.function_to_strings
+                    },
+                    'disassembly': disassembly if disassembly else None,
+                    'advanced_analysis': {
+                        'syscalls': syscalls,
+                        'api_hashes': api_hashes,
+                        'junk_patterns': junk_patterns,
+                        'advanced_flags': advanced_flags,
+                        'decrypted_strings': decrypted_strings
+                    },
+                    'call_graph': call_graph_data
+                }
+                
+                # Return success response with redirect
+                return jsonify({
+                    'success': True,
+                    'message': 'Analysis complete',
+                    'redirect': '/'
+                })
+                
+            except Exception as e:
+                return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
+        
+        @self.app.route('/api/search')
+        def api_search():
+            """API endpoint for searching analysis results"""
+            query = request.args.get('q', '')
+            search_type = request.args.get('type', 'all')
+            
+            results = self._search_results(query, search_type)
+            return jsonify(results)
+        
+        @self.app.route('/export/html')
+        def export_html():
+            """Export analysis results as HTML"""
+            html_content = self.generate_report(self.analysis_results)
+            
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', 
+                                            delete=False) as f:
+                f.write(html_content)
+                temp_path = f.name
+            
+            return send_file(temp_path, 
+                           as_attachment=True,
+                           download_name='dissectx_report.html',
+                           mimetype='text/html')
+        
+        @self.app.route('/export/pdf')
+        def export_pdf():
+            """Export analysis results as PDF"""
+            if not WEASYPRINT_AVAILABLE:
+                return jsonify({
+                    'error': 'PDF export requires weasyprint library'
+                }), 500
+            
+            try:
+                pdf_bytes = self.export_pdf(self.analysis_results)
+                
+                # Create a temporary file
+                with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', 
+                                                delete=False) as f:
+                    f.write(pdf_bytes)
+                    temp_path = f.name
+                
+                return send_file(temp_path,
+                               as_attachment=True,
+                               download_name='dissectx_report.pdf',
+                               mimetype='application/pdf')
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+    
+    def _search_results(self, query: str, search_type: str) -> Dict[str, Any]:
+        """
+        Search through analysis results.
+        
+        Args:
+            query: Search query string
+            search_type: Type of search ('all', 'strings', 'functions', 'code')
+            
+        Returns:
+            Dictionary containing search results
+        """
+        results = {
+            'query': query,
+            'type': search_type,
+            'matches': []
+        }
+        
+        if not query:
+            return results
+        
+        query_lower = query.lower()
+        
+        # Search strings
+        if search_type in ['all', 'strings']:
+            strings_data = self.analysis_results.get('strings', [])
+            for string in strings_data:
+                if isinstance(string, str) and query_lower in string.lower():
+                    results['matches'].append({
+                        'type': 'string',
+                        'value': string
+                    })
+                elif isinstance(string, dict):
+                    string_value = string.get('value', '')
+                    if query_lower in string_value.lower():
+                        results['matches'].append({
+                            'type': 'string',
+                            'value': string_value,
+                            'address': string.get('address')
+                        })
+        
+        # Search functions
+        if search_type in ['all', 'functions']:
+            functions_data = self.analysis_results.get('functions', {})
+            for func_id, func_data in functions_data.items():
+                if isinstance(func_data, dict):
+                    func_name = func_data.get('name', '')
+                    if query_lower in func_name.lower() or query_lower in func_id.lower():
+                        results['matches'].append({
+                            'type': 'function',
+                            'id': func_id,
+                            'name': func_name
+                        })
+        
+        # Search in instructions/code
+        if search_type in ['all', 'code']:
+            instructions = self.analysis_results.get('instructions', [])
+            for instr in instructions:
+                if isinstance(instr, dict):
+                    mnemonic = instr.get('mnemonic', '')
+                    operands = ' '.join(instr.get('operands', []))
+                    if query_lower in mnemonic.lower() or query_lower in operands.lower():
+                        results['matches'].append({
+                            'type': 'instruction',
+                            'address': instr.get('address'),
+                            'mnemonic': mnemonic,
+                            'operands': operands
+                        })
+        
+        return results
+    
+    def start(self, port: int = 8080, debug: bool = False):
+        """
+        Start the Flask web server.
+        
+        Args:
+            port: Port number to listen on
+            debug: Enable debug mode
+        """
+        self.port = port
+        print(f"Starting DissectX Web UI on http://localhost:{port}")
+        print(f"Press Ctrl+C to stop the server")
+        self.app.run(host='0.0.0.0', port=port, debug=debug)
+    
+    def generate_report(self, analysis_results: Dict[str, Any]) -> str:
+        """
+        Generate an HTML report from analysis results.
+        
+        Args:
+            analysis_results: Dictionary containing analysis results
+            
+        Returns:
+            HTML string
+        """
+        # Generate a comprehensive HTML report
+        html_parts = []
+        
+        html_parts.append("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DissectX Analysis Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .code {
+            background: #f8f9fa;
+            padding: 10px;
+            border-left: 3px solid #007bff;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .badge-info { background: #17a2b8; color: white; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .badge-danger { background: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+    <h1>DissectX Binary Analysis Report</h1>
+""")
+        
+        # Binary Information
+        binary_info = analysis_results.get('binary_info', {})
+        if binary_info:
+            html_parts.append('<div class="section">')
+            html_parts.append('<h2>Binary Information</h2>')
+            html_parts.append('<table>')
+            for key, value in binary_info.items():
+                html_parts.append(f'<tr><th>{key}</th><td>{value}</td></tr>')
+            html_parts.append('</table>')
+            html_parts.append('</div>')
+        
+        # Strings
+        strings_data = analysis_results.get('strings', [])
+        if strings_data:
+            html_parts.append('<div class="section">')
+            html_parts.append(f'<h2>Strings ({len(strings_data)})</h2>')
+            html_parts.append('<table>')
+            html_parts.append('<tr><th>String</th><th>Address</th></tr>')
+            for string in strings_data[:100]:  # Limit to first 100
+                if isinstance(string, str):
+                    html_parts.append(f'<tr><td>{self._escape_html(string)}</td><td>-</td></tr>')
+                elif isinstance(string, dict):
+                    value = string.get('value', '')
+                    address = string.get('address', '-')
+                    html_parts.append(f'<tr><td>{self._escape_html(value)}</td><td>{address}</td></tr>')
+            html_parts.append('</table>')
+            html_parts.append('</div>')
+        
+        # Functions
+        functions_data = analysis_results.get('functions', {})
+        if functions_data:
+            html_parts.append('<div class="section">')
+            html_parts.append(f'<h2>Functions ({len(functions_data)})</h2>')
+            html_parts.append('<table>')
+            html_parts.append('<tr><th>Address</th><th>Name</th><th>Size</th></tr>')
+            for func_id, func_data in list(functions_data.items())[:50]:  # Limit to first 50
+                if isinstance(func_data, dict):
+                    name = func_data.get('name', func_id)
+                    size = func_data.get('size', '-')
+                    html_parts.append(f'<tr><td>{func_id}</td><td>{name}</td><td>{size}</td></tr>')
+            html_parts.append('</table>')
+            html_parts.append('</div>')
+        
+        html_parts.append('</body></html>')
+        
+        return '\n'.join(html_parts)
+    
+    def export_pdf(self, analysis_results: Dict[str, Any]) -> bytes:
+        """
+        Export analysis results as PDF.
+        
+        Args:
+            analysis_results: Dictionary containing analysis results
+            
+        Returns:
+            PDF file as bytes
+        """
+        if not WEASYPRINT_AVAILABLE:
+            raise ImportError("PDF export requires weasyprint library")
+        
+        # Generate HTML report
+        html_content = self.generate_report(analysis_results)
+        
+        # Convert HTML to PDF
+        pdf_bytes = HTML(string=html_content).write_pdf()
+        
+        return pdf_bytes
+    
+    def serve_static_files(self):
+        """Serve static files (CSS, JS, images)"""
+        # Static files are automatically served by Flask from the static folder
+        pass
+    
+    def handle_navigation(self, request: Any) -> Response:
+        """
+        Handle navigation requests.
+        
+        Args:
+            request: Flask request object
+            
+        Returns:
+            Flask response
+        """
+        # Navigation is handled by the route decorators
+        pass
+    
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters"""
+        return (text
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+                .replace('"', '&quot;')
+                .replace("'", '&#39;'))
+
+
+def create_app(analysis_results: Optional[Dict[str, Any]] = None) -> Flask:
+    """
+    Factory function to create Flask app.
+    
+    Args:
+        analysis_results: Dictionary containing analysis results
+        
+    Returns:
+        Flask application instance
+    """
+    server = WebUIServer(analysis_results)
+    return server.app

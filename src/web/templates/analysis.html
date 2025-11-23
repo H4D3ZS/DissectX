@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Results - DissectX{% endblock %}
+
+{% block content %}
+<div class="analysis-page">
+    <h1>Analysis Results</h1>
+    
+    {% if results.binary_info %}
+    <div class="section">
+        <h2>Binary Information</h2>
+        <table class="info-table">
+            {% for key, value in results.binary_info.items() %}
+            <tr>
+                <th>{{ key }}</th>
+                <td>{{ value }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
+    {% if results.architecture %}
+    <div class="section">
+        <h2>Architecture Details</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="label">Architecture:</span>
+                <span class="value">{{ results.architecture }}</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Bit Width:</span>
+                <span class="value">{{ results.bit_width or 'Unknown' }}</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if results.functions %}
+    <div class="section">
+        <h2>Functions Summary</h2>
+        <p>Total functions detected: <strong>{{ results.functions|length }}</strong></p>
+        <a href="/functions" class="btn btn-primary">View All Functions</a>
+    </div>
+    {% endif %}
+    
+    {% if results.strings %}
+    <div class="section">
+        <h2>Strings Summary</h2>
+        <p>Total strings extracted: <strong>{{ results.strings|length }}</strong></p>
+        <a href="/strings" class="btn btn-primary">View All Strings</a>
+    </div>
+    {% endif %}
+    
+    {% if results.xrefs %}
+    <div class="section">
+        <h2>Cross-References Summary</h2>
+        <p>Cross-reference data available</p>
+        <a href="/xrefs" class="btn btn-primary">View Cross-References</a>
+    </div>
+    {% endif %}
+    
+    {% if results.flags %}
+    <div class="section">
+        <h2>Detected Flags</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Flag</th>
+                    <th>Confidence</th>
+                    <th>Location</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for flag in results.flags %}
+                <tr>
+                    <td><code>{{ flag.value }}</code></td>
+                    <td><span class="badge badge-{{ flag.confidence }}">{{ flag.confidence }}</span></td>
+                    <td>{{ flag.location or 'N/A' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
