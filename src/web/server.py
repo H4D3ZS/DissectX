@@ -15,6 +15,15 @@ try:
 except ImportError:
     WEASYPRINT_AVAILABLE = False
 
+# Try to import AutoExploiter (requires pwntools)
+try:
+    # Set environment variable to prevent pwntools from messing with signals/terminals
+    os.environ['PWNLIB_NOTERM'] = '1'
+    from src.exploitation.auto_exploiter import AutoExploiter
+    AUTO_EXPLOITER_AVAILABLE = True
+except ImportError:
+    AUTO_EXPLOITER_AVAILABLE = False
+
 
 class WebUIServer:
     """Web-based user interface server for binary analysis results"""
@@ -29,7 +38,7 @@ class WebUIServer:
         self.app = Flask(__name__, 
                         template_folder=self._get_template_folder(),
                         static_folder=self._get_static_folder())
-        self.app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
+        self.app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB max file size
         self.analysis_results = analysis_results or {}
         self.port = 8080
         
@@ -221,6 +230,12 @@ class WebUIServer:
             """Recent scans history page"""
             return render_template('recent_scans.html', 
                                  scans=self.recent_scans)
+                                 
+        @self.app.route('/exploitation')
+        def exploitation():
+            """Exploitation tools dashboard"""
+            return render_template('exploitation.html', 
+                                 results=self.analysis_results)
         
         @self.app.route('/scan/<scan_id>')
         def view_scan(scan_id):
@@ -449,20 +464,32 @@ class WebUIServer:
                 file_path = self.scans_dir / file.filename
                 file.save(str(file_path))
                 
+                # Set executable permission for the binary
+                import stat
+                os.chmod(str(file_path), os.stat(str(file_path)).st_mode | stat.S_IEXEC | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                
                 # Calculate file hashes
                 file_hashes = self._calculate_file_hash(str(file_path))
                 
                 # Import the analyzer
                 from src.binary_analyzer import BinaryAnalyzer
                 
+                # Check file size for optimization
+                file_size = os.path.getsize(str(file_path))
+                quick_mode = file_size > 10 * 1024 * 1024  # > 10MB
+                
+                if quick_mode:
+                    print(f"⚡ Large file detected ({file_size/1024/1024:.2f} MB). Enabling Quick Mode (skipping disassembly/emulation).")
+
                 # Create analyzer and analyze the binary
                 analyzer = BinaryAnalyzer()
                 # Enable all advanced features
                 raw_results = analyzer.analyze_binary(
                     str(file_path), 
                     advanced=True, 
-                    emulate=True, 
-                    decrypt_strings=True
+                    emulate=not quick_mode, # Skip emulation in quick mode
+                    decrypt_strings=not quick_mode, # Skip decryption in quick mode
+                    quick_mode=quick_mode
                 )
                 
                 # Extract key data
@@ -491,7 +518,9 @@ class WebUIServer:
                         })
                 
                 # Disassembly and Call Graph
-                disassembly = analyzer.disassemble_binary(str(file_path))
+                disassembly = None
+                if not quick_mode:
+                    disassembly = analyzer.disassemble_binary(str(file_path))
                 
                 # CALL GRAPH GENERATION
                 call_graph_data = {}
@@ -644,6 +673,122 @@ class WebUIServer:
             
             results = self._search_results(query, search_type)
             return jsonify(results)
+            
+        # ==========================================
+        # Exploitation API Endpoints
+        # ==========================================
+        
+        @self.app.route('/api/pattern/create')
+        def api_pattern_create():
+            try:
+                length = int(request.args.get('length', 100))
+                from src.utils.pattern_tools import PatternGenerator
+                pg = PatternGenerator()
+                pattern = pg.create(length)
+                return jsonify({'pattern': pattern})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+
+        @self.app.route('/api/pattern/offset')
+        def api_pattern_offset():
+            try:
+                value = request.args.get('value', '')
+                from src.utils.pattern_tools import PatternGenerator
+                pg = PatternGenerator()
+                offset = pg.offset(value)
+                return jsonify({'offset': offset})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+
+        @self.app.route('/api/shellcode/list')
+        def api_shellcode_list():
+            try:
+                from src.utils.shellcode_manager import ShellcodeManager
+                sm = ShellcodeManager()
+                shellcodes = sm.list_shellcodes()
+                # Convert bytes to hex string for JSON serialization
+                for sc in shellcodes:
+                    if 'code' in sc and isinstance(sc['code'], bytes):
+                        sc['code'] = sc['code'].hex()
+                return jsonify({'shellcodes': shellcodes})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+
+        @self.app.route('/api/shellcode/get')
+        def api_shellcode_get():
+            try:
+                shellcode_id = request.args.get('id', '')
+                encode = request.args.get('encode', 'false').lower() == 'true'
+                polymorph = request.args.get('polymorph', 'false').lower() == 'true'
+                
+                from src.utils.shellcode_manager import ShellcodeManager
+                sm = ShellcodeManager()
+                shellcode = sm.get_shellcode(shellcode_id)
+                
+                if not shellcode:
+                    return jsonify({'error': 'Shellcode not found'}), 404
+                
+                # Apply mutations if requested
+                if polymorph:
+                    from src.exploitation.polymorphic_engine import PolymorphicEngine
+                    pe = PolymorphicEngine()
+                    # Arch detection is simple here, assuming x64 for demo
+                    shellcode = pe.mutate(shellcode, arch='x64')
+                
+                if encode:
+                    from src.exploitation.payload_encoder import PayloadEncoder
+                    pe = PayloadEncoder()
+                    shellcode, key = pe.encode_xor(shellcode)
+                
+                # Format as hex string for display
+                formatted = "".join([f"\\x{b:02x}" for b in shellcode])
+                return jsonify({'code': formatted})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+
+        @self.app.route('/api/exploit/auto')
+        def api_exploit_auto():
+            try:
+                filepath = request.args.get('filepath', '')
+                encode = request.args.get('encode', 'false').lower() == 'true'
+                polymorph = request.args.get('polymorph', 'false').lower() == 'true'
+                
+                if not filepath or not os.path.exists(filepath):
+                    return jsonify({'error': 'File not found'}), 404
+                
+                if not AUTO_EXPLOITER_AVAILABLE:
+                    return jsonify({'error': 'AutoExploiter not available. Please install pwntools: pip install pwntools'}), 500
+                
+                exploiter = AutoExploiter()
+                
+                # Find offset
+                print(f"[*] Finding buffer overflow offset for {filepath}")
+                offset = exploiter.find_offset(filepath)
+                
+                if offset == -1:
+                    return jsonify({'error': 'Could not find buffer overflow offset'}), 200
+                
+                # Generate exploit
+                use_encoding = request.args.get('encode', 'false').lower() == 'true'
+                use_polymorph = request.args.get('polymorph', 'false').lower() == 'true'
+                auto_run = request.args.get('autorun', 'true').lower() == 'true'
+                
+                script = exploiter.generate_exploit(filepath, offset, use_encoding, use_polymorph)
+                
+                response_data = {
+                    'offset': offset,
+                    'script': script
+                }
+                
+                # Auto-execute if requested
+                if auto_run:
+                    print(f"[*] Auto-executing exploit...")
+                    exec_result = exploiter.execute_exploit(filepath, script, timeout=5)
+                    response_data['execution'] = exec_result
+                
+                return jsonify(response_data)
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 500
         
         @self.app.route('/export/html')
         def export_html():

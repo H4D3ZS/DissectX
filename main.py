@@ -41,7 +41,7 @@ def start_web_server_background(port=8000):
         app = server.app
         
         # Configure upload settings
-        app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
+        app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB max file size
         app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
         
         # Store analysis cache
@@ -114,6 +114,12 @@ def start_web_server_background(port=8000):
                 except:
                     pass
                 
+                # Checksec (Security Mitigations)
+                security_mitigations = binary_analyzer.detect_security_mitigations(temp_path)
+
+                # Vulnerability Scan
+                vulnerabilities = binary_analyzer.detect_vulnerabilities(temp_path)
+
                 # ============================================================
                 # ADVANCED DETECTION MODULES
                 # ============================================================
@@ -338,6 +344,8 @@ def start_web_server_background(port=8000):
                         'advanced_flags': advanced_flags,
                         'decrypted_strings': decrypted_strings
                     },
+                    'security_mitigations': security_mitigations,
+                    'vulnerabilities': vulnerabilities,
                     # Call graph data
                     'call_graph': call_graph_data
                 }
@@ -614,6 +622,47 @@ Made with ❤️  for the security research community
         help='Detect junk code and anti-analysis techniques'
     )
     
+    # Exploitation Tools
+    exploit = parser.add_argument_group('💣 Exploitation Tools')
+    exploit.add_argument(
+        '--pattern-create',
+        type=int,
+        metavar='LENGTH',
+        help='Generate a cyclic pattern of given length (De Bruijn sequence)'
+    )
+    exploit.add_argument(
+        '--pattern-offset',
+        type=str,
+        metavar='VALUE',
+        help='Find offset of a value in the cyclic pattern (e.g., 0x41414141 or AAAA)'
+    )
+    exploit.add_argument(
+        '--list-shellcodes',
+        action='store_true',
+        help='List available shellcodes in the library'
+    )
+    exploit.add_argument(
+        '--shellcode',
+        type=str,
+        metavar='ID',
+        help='Get raw shellcode by ID (use --list-shellcodes to see IDs)'
+    )
+    exploit.add_argument(
+        '--auto-exploit',
+        action='store_true',
+        help='Automatically find buffer overflow offset and generate exploit script'
+    )
+    exploit.add_argument(
+        '--encode',
+        action='store_true',
+        help='Encode payload to avoid bad characters (XOR)'
+    )
+    exploit.add_argument(
+        '--polymorph',
+        action='store_true',
+        help='Apply polymorphic mutations to payload'
+    )
+    
     # Input Mode Options
     input_mode = parser.add_argument_group('📝 Input Mode Options')
     input_mode.add_argument(
@@ -661,7 +710,8 @@ Made with ❤️  for the security research community
             return  # Exit after web server stops
         
         # Check if we have input
-        if not args.file and not args.interactive and not args.memory_dump and not args.generate_dump and sys.stdin.isatty():
+        has_exploit_args = args.pattern_create or args.pattern_offset or args.list_shellcodes or args.shellcode or args.auto_exploit
+        if not args.file and not args.interactive and not args.memory_dump and not args.generate_dump and not has_exploit_args and sys.stdin.isatty():
             parser.print_help()
             print("\n❌ Error: No input provided", file=sys.stderr)
             print("💡 Try: python main.py yourfile.exe", file=sys.stderr)
@@ -724,6 +774,84 @@ Made with ❤️  for the security research community
             except Exception as e:
                 print(f"❌ Error analyzing memory dump: {e}")
                 return
+
+        # Handle Exploitation Tools
+        if args.pattern_create:
+            from src.utils.pattern_tools import PatternGenerator
+            pg = PatternGenerator()
+            pattern = pg.create(args.pattern_create)
+            print(f"🌀 Cyclic Pattern ({args.pattern_create} bytes):")
+            print(pattern)
+            return
+
+        if args.pattern_offset:
+            from src.utils.pattern_tools import PatternGenerator
+            pg = PatternGenerator()
+            offset = pg.offset(args.pattern_offset)
+            if offset != -1:
+                print(f"🎯 Offset found at: {offset}")
+            else:
+                print("❌ Offset not found in pattern")
+            return
+
+        if args.list_shellcodes:
+            from src.utils.shellcode_manager import ShellcodeManager
+            sm = ShellcodeManager()
+            shellcodes = sm.list_shellcodes()
+            print("🐚 Available Shellcodes:")
+            print(f"{'ID':<25} {'Arch':<6} {'Size':<6} {'Description'}")
+            print("-" * 80)
+            for sc in shellcodes:
+                print(f"{sc['id']:<25} {sc['arch']:<6} {sc['size']:<6} {sc['description']}")
+            return
+
+        if args.shellcode:
+            from src.utils.shellcode_manager import ShellcodeManager
+            sm = ShellcodeManager()
+            code = sm.format_shellcode(args.shellcode, format_type='python')
+            print(f"🐚 Shellcode {args.shellcode}:")
+            print(code)
+            return
+
+        # Handle Auto Exploitation
+        if args.auto_exploit:
+            if not args.file:
+                print("❌ Error: --auto-exploit requires a binary file input")
+                return
+                
+            print(f"🤖 Starting Automated Exploitation on {args.file}...")
+            from src.exploitation.auto_exploiter import AutoExploiter
+            
+            exploiter = AutoExploiter()
+            
+            # 1. Find Offset
+            print("⏳ Finding buffer overflow offset...")
+            offset = exploiter.find_offset(args.file)
+            
+            if offset != -1:
+                print(f"✅ Offset found at: {offset}")
+                
+                # 2. Generate Exploit
+                print("📝 Generating exploit script...")
+                script = exploiter.generate_exploit(
+                    args.file, 
+                    offset,
+                    use_encoding=args.encode,
+                    use_polymorph=args.polymorph
+                )
+                
+                output_script = args.file + "_exploit.py"
+                with open(output_script, 'w') as f:
+                    f.write(script)
+                    
+                print(f"🚀 Exploit generated: {output_script}")
+                print("-" * 40)
+                print(script)
+                print("-" * 40)
+            else:
+                print("❌ Could not find buffer overflow offset (binary might not be vulnerable or requires more complex input)")
+            
+            return
 
         # Step 0: Smart binary detection and analysis
         binary_analysis = None

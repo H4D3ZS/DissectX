@@ -8,27 +8,32 @@
 
     {% if has_results %}
     <!-- Combined Success Message and Upload Section -->
-    <div class="top-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; color: white;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; flex-wrap: wrap;">
+    <div class="top-section"
+        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; color: white;">
+        <div
+            style="display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; flex-wrap: wrap;">
             <!-- Left: Success Message -->
             <div style="flex: 1; min-width: 300px;">
                 <h2 style="margin: 0 0 10px 0; color: white;">✅ Analysis Complete!</h2>
-                <p style="margin: 0; opacity: 0.95;">Binary analysis has been completed. Navigate to the sections below to explore the results, or upload a new binary to analyze.</p>
+                <p style="margin: 0; opacity: 0.95;">Binary analysis has been completed. Navigate to the sections below
+                    to explore the results, or upload a new binary to analyze.</p>
             </div>
-            
+
             <!-- Right: Quick Upload -->
             <div style="flex: 1; min-width: 300px;">
                 <form id="uploadForm" enctype="multipart/form-data">
-                    <input type="file" id="fileInputNew" name="file" accept=".exe,.elf,.bin,.dll,.so,*"
+                    <input type="file" id="fileInputNew" name="file"
                         style="opacity: 0; position: absolute; z-index: -1;">
-                    
-                    <label for="fileInputNew" class="upload-area-compact" style="display: block; background: rgba(255,255,255,0.2); border: 2px dashed rgba(255,255,255,0.5); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px);">
+
+                    <label for="fileInputNew" class="upload-area-compact"
+                        style="display: block; background: rgba(255,255,255,0.2); border: 2px dashed rgba(255,255,255,0.5); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px);">
                         <div style="font-size: 2em; margin-bottom: 8px;">📁</div>
                         <div style="font-weight: 600; margin-bottom: 5px;">Upload New Binary</div>
                         <div style="font-size: 0.85em; opacity: 0.9;">Click or drag & drop</div>
                     </label>
 
-                    <div class="file-info" style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; backdrop-filter: blur(10px);">
+                    <div class="file-info"
+                        style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; backdrop-filter: blur(10px);">
                         <div class="file-name" style="font-weight: 600; margin-bottom: 5px; color: white;"></div>
                         <div class="file-size" style="font-size: 0.9em; opacity: 0.9;"></div>
                     </div>
@@ -43,7 +48,7 @@
                         <div class="upload-progress-bar"
                             style="height: 100%; background: white; width: 0%; transition: width 0.3s ease;"></div>
                     </div>
-                    
+
                     <div id="results" style="display: none; margin-top: 12px;"></div>
                 </form>
             </div>
@@ -51,449 +56,447 @@
     </div>
 
     <div class="dashboard-grid"></div>
-        <div class="dashboard-card">
-            <h3>Analysis Overview</h3>
-            <p>View comprehensive analysis results including binary information, architecture details, and more.</p>
-            <a href="/analysis" class="btn btn-primary">View Analysis</a>
-        </div>
-
-        <div class="dashboard-card">
-            <h3>Functions</h3>
-            <p>Browse all detected functions, their addresses, and relationships.</p>
-            <a href="/functions" class="btn btn-primary">View Functions</a>
-        </div>
-
-        <div class="dashboard-card">
-            <h3>Strings</h3>
-            <p>Explore extracted strings from the binary with context and usage information.</p>
-            <a href="/strings" class="btn btn-primary">View Strings</a>
-        </div>
-
-        <div class="dashboard-card">
-            <h3>Cross-References</h3>
-            <p>Analyze cross-references between functions, strings, and data.</p>
-            <a href="/xrefs" class="btn btn-primary">View XREFs</a>
-        </div>
-
-        <div class="dashboard-card">
-            <h3>Advanced Analysis</h3>
-            <p>Syscalls, API hashes, junk code detection, and more advanced features.</p>
-            <a href="/advanced" class="btn btn-primary">View Advanced</a>
-        </div>
-
-        <div class="dashboard-card">
-            <h3>Call Graph</h3>
-            <p>Interactive visualization of function call relationships and control flow.</p>
-            <a href="/graph" class="btn btn-primary">View Graph</a>
-        </div>
-
-        <div class="dashboard-card">
-            <h3>Recent Scans</h3>
-            <p>Browse your scan history with hash verification and quick access to previous analyses.</p>
-            <a href="/recent-scans" class="btn btn-primary">View Recent Scans</a>
-        </div>
+    <div class="dashboard-card">
+        <h3>Analysis Overview</h3>
+        <p>View comprehensive analysis results including binary information, architecture details, and more.</p>
+        <a href="/analysis" class="btn btn-primary">View Analysis</a>
     </div>
 
-    {% else %}
-    <div class="upload-section">
-        <h2>Upload Binary for Analysis</h2>
-        <p>Upload a binary file (.exe, .elf, .bin, etc.) to analyze it instantly.</p>
-
-        <form id="uploadForm" enctype="multipart/form-data" style="margin-top: 20px;">
-            <input type="file" id="fileInput" name="file" accept=".exe,.elf,.bin,.dll,.so,*"
-                style="opacity: 0; position: absolute; z-index: -1;">
-            <label for="fileInput" class="upload-area" id="uploadArea">
-                <div class="upload-icon">📁</div>
-                <div class="upload-text">Click to upload or drag & drop</div>
-                <div class="upload-hint">Supports .exe, .elf, .bin, .dll, .so and other binary formats</div>
-            </label>
-
-            <div class="file-info" id="fileInfo"
-                style="display: none; margin-top: 15px; padding: 15px; background: #f0f8ff; border-radius: 8px;">
-                <div class="file-name" id="fileName" style="font-weight: 600; margin-bottom: 5px;"></div>
-                <div class="file-size" id="fileSize" style="color: #666; font-size: 0.9em;"></div>
-            </div>
-
-            <button type="submit" class="btn btn-primary analyze-btn" disabled
-                style="margin-top: 15px; width: 100%;">
-                Analyze Binary
-            </button>
-
-            <div class="progress upload-progress"
-                style="display: none; margin-top: 15px; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden;">
-                <div class="progress-bar upload-progress-bar"
-                    style="height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease;"></div>
-            </div>
-        </form>
-
-        <div id="results" style="display: none; margin-top: 30px;"></div>
+    <div class="dashboard-card">
+        <h3>Functions</h3>
+        <p>Browse all detected functions, their addresses, and relationships.</p>
+        <a href="/functions" class="btn btn-primary">View Functions</a>
     </div>
 
-    <style>
-        .upload-area {
-            display: block;
-            border: 3px dashed #007bff;
-            border-radius: 12px;
-            padding: 40px;
-            text-align: center;
-            background: #f8f9ff;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
+    <div class="dashboard-card">
+        <h3>Strings</h3>
+        <p>Explore extracted strings from the binary with context and usage information.</p>
+        <a href="/strings" class="btn btn-primary">View Strings</a>
+    </div>
 
-        .upload-area:hover {
-            border-color: #0056b3;
-            background: #f0f4ff;
-        }
+    <div class="dashboard-card">
+        <h3>Cross-References</h3>
+        <p>Analyze cross-references between functions, strings, and data.</p>
+        <a href="/xrefs" class="btn btn-primary">View XREFs</a>
+    </div>
 
-        .upload-area.dragover {
-            border-color: #0056b3;
-            background: #e8f0ff;
-            transform: scale(1.02);
-        }
+    <div class="dashboard-card">
+        <h3>Advanced Analysis</h3>
+        <p>Syscalls, API hashes, junk code detection, and more advanced features.</p>
+        <a href="/advanced" class="btn btn-primary">View Advanced</a>
+    </div>
 
-        .upload-icon {
-            font-size: 3em;
-            margin-bottom: 15px;
-        }
+    <div class="dashboard-card">
+        <h3>Call Graph</h3>
+        <p>Interactive visualization of function call relationships and control flow.</p>
+        <a href="/graph" class="btn btn-primary">View Graph</a>
+    </div>
 
-        .upload-text {
-            color: #007bff;
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
+    <div class="dashboard-card">
+        <h3>Recent Scans</h3>
+        <p>Browse your scan history with hash verification and quick access to previous analyses.</p>
+        <a href="/recent-scans" class="btn btn-primary">View Recent Scans</a>
+    </div>
+</div>
 
-        .upload-hint {
-            color: #666;
-            font-size: 0.9em;
-        }
+{% else %}
+<div class="upload-section">
+    <h2>Upload Binary for Analysis</h2>
+    <p>Upload a binary file (.exe, .elf, .bin, etc.) to analyze it instantly.</p>
 
-        .result-item {
-            background: #f8f9ff;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border-left: 4px solid #007bff;
-        }
+    <form id="uploadForm" enctype="multipart/form-data" style="margin-top: 20px;">
+        <input type="file" id="fileInput" name="file" style="opacity: 0; position: absolute; z-index: -1;">
+        <label for="fileInput" class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Click to upload or drag & drop</div>
+            <div class="upload-hint">Supports .exe, .elf, .bin, .dll, .so and other binary formats</div>
+        </label>
 
-        .result-label {
-            color: #007bff;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
+        <div class="file-info" id="fileInfo"
+            style="display: none; margin-top: 15px; padding: 15px; background: #f0f8ff; border-radius: 8px;">
+            <div class="file-name" id="fileName" style="font-weight: 600; margin-bottom: 5px;"></div>
+            <div class="file-size" id="fileSize" style="color: #666; font-size: 0.9em;"></div>
+        </div>
 
-        .result-value {
-            color: #333;
-            font-family: 'Courier New', monospace;
-        }
+        <button type="submit" class="btn btn-primary analyze-btn" disabled style="margin-top: 15px; width: 100%;">
+            Analyze Binary
+        </button>
+
+        <div class="progress upload-progress"
+            style="display: none; margin-top: 15px; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden;">
+            <div class="progress-bar upload-progress-bar"
+                style="height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease;"></div>
+        </div>
+    </form>
+
+    <div id="results" style="display: none; margin-top: 30px;"></div>
+</div>
+
+<style>
+    .upload-area {
+        display: block;
+        border: 3px dashed #007bff;
+        border-radius: 12px;
+        padding: 40px;
+        text-align: center;
+        background: #f8f9ff;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .upload-area:hover {
+        border-color: #0056b3;
+        background: #f0f4ff;
+    }
+
+    .upload-area.dragover {
+        border-color: #0056b3;
+        background: #e8f0ff;
+        transform: scale(1.02);
+    }
+
+    .upload-icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+
+    .upload-text {
+        color: #007bff;
+        font-size: 1.2em;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .upload-hint {
+        color: #666;
+        font-size: 0.9em;
+    }
+
+    .result-item {
+        background: #f8f9ff;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid #007bff;
+    }
+
+    .result-label {
+        color: #007bff;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+
+    .result-value {
+        color: #333;
+        font-family: 'Courier New', monospace;
+    }
+
+    .upload-area-compact:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.8) !important;
+        transform: translateY(-2px);
+    }
+
+    .upload-area-compact.dragover {
+        background: rgba(255, 255, 255, 0.4) !important;
+        border-color: white !important;
+        transform: scale(1.02);
+    }
+
+    .analyze-btn:not(:disabled):hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .analyze-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+
+<!-- Old script removed - using universal script below instead -->
+<script>
+    // Empty - all functionality moved to universal script below
+    console.log('Placeholder script - functionality in universal script');
+</script>
+<script style="display:none">
+    // Old code commented out
+    /*
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('=== DOM CONTENT LOADED ===');
+        console.log('Looking for upload forms...');
+        // Setup all upload forms on the page
+        const forms = document.querySelectorAll('#uploadForm');
+        console.log('Found', forms.length, 'upload forms');
+        console.log('Forms:', forms);
         
-        .upload-area-compact:hover {
-            background: rgba(255,255,255,0.3) !important;
-            border-color: rgba(255,255,255,0.8) !important;
-            transform: translateY(-2px);
-        }
-        
-        .upload-area-compact.dragover {
-            background: rgba(255,255,255,0.4) !important;
-            border-color: white !important;
-            transform: scale(1.02);
-        }
-        
-        .analyze-btn:not(:disabled):hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-        
-        .analyze-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-    </style>
+        forms.forEach(function(uploadForm, index) {
+            console.log('Setting up form', index);
+            const fileInput = uploadForm.querySelector('input[type="file"]');
+            const uploadArea = uploadForm.querySelector('.upload-area, .upload-area-compact');
+            const fileInfo = uploadForm.querySelector('.file-info');
+            const fileName = uploadForm.querySelector('.file-name');
+            const fileSize = uploadForm.querySelector('.file-size');
+            const analyzeBtn = uploadForm.querySelector('.analyze-btn');
+            const progress = uploadForm.querySelector('.upload-progress');
+            const progressBar = uploadForm.querySelector('.upload-progress-bar');
+            const results = uploadForm.querySelector('#results') || document.getElementById('results');
 
-    <!-- Old script removed - using universal script below instead -->
-    <script>
-        // Empty - all functionality moved to universal script below
-        console.log('Placeholder script - functionality in universal script');
-    </script>
-    <script style="display:none">
-        // Old code commented out
-        /*
-        document.addEventListener('DOMContentLoaded', function () {
-            console.log('=== DOM CONTENT LOADED ===');
-            console.log('Looking for upload forms...');
-            // Setup all upload forms on the page
-            const forms = document.querySelectorAll('#uploadForm');
-            console.log('Found', forms.length, 'upload forms');
-            console.log('Forms:', forms);
-            
-            forms.forEach(function(uploadForm, index) {
-                console.log('Setting up form', index);
-                const fileInput = uploadForm.querySelector('input[type="file"]');
-                const uploadArea = uploadForm.querySelector('.upload-area, .upload-area-compact');
-                const fileInfo = uploadForm.querySelector('.file-info');
-                const fileName = uploadForm.querySelector('.file-name');
-                const fileSize = uploadForm.querySelector('.file-size');
-                const analyzeBtn = uploadForm.querySelector('.analyze-btn');
-                const progress = uploadForm.querySelector('.upload-progress');
-                const progressBar = uploadForm.querySelector('.upload-progress-bar');
-                const results = uploadForm.querySelector('#results') || document.getElementById('results');
-
-                console.log('Form', index, 'elements:', {
-                    fileInput: fileInput ? fileInput.id : 'NOT FOUND',
-                    uploadArea: !!uploadArea,
-                    fileInfo: !!fileInfo,
-                    fileName: !!fileName,
-                    fileSize: !!fileSize,
-                    analyzeBtn: !!analyzeBtn,
-                    analyzeDisabled: analyzeBtn ? analyzeBtn.disabled : 'N/A',
-                    progress: !!progress,
-                    progressBar: !!progressBar,
-                    results: !!results
-                });
-
-                if (!fileInput) {
-                    console.warn('Form', index, 'missing file input, skipping');
-                    return;
-                }
-                
-                if (!uploadArea) {
-                    console.warn('Form', index, 'missing upload area, skipping');
-                    return;
-                }
-
-                let selectedFile = null;
-
-                // Drag and drop
-                uploadArea.addEventListener('dragover', function (e) {
-                    e.preventDefault();
-                    uploadArea.classList.add('dragover');
-                });
-
-                uploadArea.addEventListener('dragleave', function () {
-                    uploadArea.classList.remove('dragover');
-                });
-
-                uploadArea.addEventListener('drop', function (e) {
-                    e.preventDefault();
-                    uploadArea.classList.remove('dragover');
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                        // Manually set the file to the input
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(files[0]);
-                        fileInput.files = dataTransfer.files;
-                        handleFile(files[0]);
-                    }
-                });
-
-                // File input change
-                fileInput.addEventListener('change', function (e) {
-                    console.log('File input changed, files:', e.target.files.length);
-                    console.log('File input element:', e.target);
-                    console.log('Files:', e.target.files);
-                    if (e.target.files.length > 0) {
-                        console.log('Calling handleFile with:', e.target.files[0].name);
-                        handleFile(e.target.files[0]);
-                    } else {
-                        console.warn('No files selected!');
-                    }
-                });
-
-                function handleFile(file) {
-                    console.log('handleFile called with:', file.name, formatFileSize(file.size));
-                    console.log('analyzeBtn element:', analyzeBtn);
-                    console.log('analyzeBtn disabled before:', analyzeBtn ? analyzeBtn.disabled : 'N/A');
-                    
-                    selectedFile = file;
-                    if (fileName) fileName.textContent = file.name;
-                    if (fileSize) fileSize.textContent = formatFileSize(file.size);
-                    if (fileInfo) fileInfo.style.display = 'block';
-                    if (analyzeBtn) {
-                        analyzeBtn.disabled = false;
-                        console.log('analyzeBtn disabled after:', analyzeBtn.disabled);
-                    } else {
-                        console.error('analyzeBtn not found!');
-                    }
-                }
-
-                function formatFileSize(bytes) {
-                    if (bytes < 1024) return bytes + ' B';
-                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-                    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-                }
-
-                // Form submission
-                uploadForm.addEventListener('submit', async function (e) {
-                    e.preventDefault();
-
-                    // Get file from input if selectedFile is not set
-                    if (!selectedFile && fileInput.files.length > 0) {
-                        selectedFile = fileInput.files[0];
-                    }
-
-                    if (!selectedFile) {
-                        alert('Please select a file first');
-                        return;
-                    }
-
-                    if (analyzeBtn) analyzeBtn.disabled = true;
-                    if (progress) progress.style.display = 'block';
-                    if (results) results.style.display = 'none';
-
-                    console.log('Starting upload for:', selectedFile.name);
-                    
-                    const formData = new FormData();
-                    formData.append('file', selectedFile);
-
-                    try {
-                        // Simulate progress
-                        let progressValue = 0;
-                        const progressInterval = setInterval(function () {
-                            progressValue += 5;
-                            if (progressValue >= 90) {
-                                clearInterval(progressInterval);
-                            }
-                            if (progressBar) progressBar.style.width = progressValue + '%';
-                        }, 100);
-
-                        const response = await fetch('/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        clearInterval(progressInterval);
-                        if (progressBar) progressBar.style.width = '100%';
-
-                        const data = await response.json();
-
-                        setTimeout(function () {
-                            if (progress) progress.style.display = 'none';
-                            displayResults(data);
-                            if (analyzeBtn) analyzeBtn.disabled = false;
-                        }, 500);
-
-                    } catch (error) {
-                        alert('Error analyzing file: ' + error.message);
-                        if (progress) progress.style.display = 'none';
-                        if (analyzeBtn) analyzeBtn.disabled = false;
-                    }
-                });
-
-                function displayResults(data) {
-                    if (data.error) {
-                        if (results) {
-                            results.innerHTML = `
-                                <div class="alert alert-danger">
-                                    <h3>Error</h3>
-                                    <p>${data.error}</p>
-                                </div>
-                            `;
-                            results.style.display = 'block';
-                        }
-                    } else if (data.success && data.redirect) {
-                        // Analysis complete! Redirect to dashboard to see full results
-                        if (results) {
-                            results.innerHTML = `
-                                <div class="alert alert-success">
-                                    <h3>✅ Analysis Complete!</h3>
-                                    <p>Redirecting to dashboard...</p>
-                                </div>
-                            `;
-                            results.style.display = 'block';
-                        }
-
-                        // Redirect after a short delay
-                        setTimeout(function () {
-                            window.location.href = data.redirect;
-                        }, 1000);
-                    }
-                }
+            console.log('Form', index, 'elements:', {
+                fileInput: fileInput ? fileInput.id : 'NOT FOUND',
+                uploadArea: !!uploadArea,
+                fileInfo: !!fileInfo,
+                fileName: !!fileName,
+                fileSize: !!fileSize,
+                analyzeBtn: !!analyzeBtn,
+                analyzeDisabled: analyzeBtn ? analyzeBtn.disabled : 'N/A',
+                progress: !!progress,
+                progressBar: !!progressBar,
+                results: !!results
             });
-        });
-        */
-    </script>
-    
-    {% endif %}
-    
-    <!-- Universal upload script that always loads -->
-    <script>
-        console.log('=== UNIVERSAL SCRIPT STARTING ===');
-        
-        function setupUploadForm() {
-            console.log('Setting up upload handlers...');
-            
-            // Find all upload forms
-            const forms = document.querySelectorAll('form[id="uploadForm"]');
-            console.log('Found', forms.length, 'forms');
-            
-            if (forms.length === 0) {
-                console.warn('No forms found! Retrying in 100ms...');
-                setTimeout(setupUploadForm, 100);
+
+            if (!fileInput) {
+                console.warn('Form', index, 'missing file input, skipping');
                 return;
             }
             
-            forms.forEach((form, idx) => {
-                // Check if already set up
-                if (form.dataset.setupDone) {
-                    console.log(`Form ${idx} already set up, skipping`);
+            if (!uploadArea) {
+                console.warn('Form', index, 'missing upload area, skipping');
+                return;
+            }
+
+            let selectedFile = null;
+
+            // Drag and drop
+            uploadArea.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function () {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function (e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    // Manually set the file to the input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(files[0]);
+                    fileInput.files = dataTransfer.files;
+                    handleFile(files[0]);
+                }
+            });
+
+            // File input change
+            fileInput.addEventListener('change', function (e) {
+                console.log('File input changed, files:', e.target.files.length);
+                console.log('File input element:', e.target);
+                console.log('Files:', e.target.files);
+                if (e.target.files.length > 0) {
+                    console.log('Calling handleFile with:', e.target.files[0].name);
+                    handleFile(e.target.files[0]);
+                } else {
+                    console.warn('No files selected!');
+                }
+            });
+
+            function handleFile(file) {
+                console.log('handleFile called with:', file.name, formatFileSize(file.size));
+                console.log('analyzeBtn element:', analyzeBtn);
+                console.log('analyzeBtn disabled before:', analyzeBtn ? analyzeBtn.disabled : 'N/A');
+                
+                selectedFile = file;
+                if (fileName) fileName.textContent = file.name;
+                if (fileSize) fileSize.textContent = formatFileSize(file.size);
+                if (fileInfo) fileInfo.style.display = 'block';
+                if (analyzeBtn) {
+                    analyzeBtn.disabled = false;
+                    console.log('analyzeBtn disabled after:', analyzeBtn.disabled);
+                } else {
+                    console.error('analyzeBtn not found!');
+                }
+            }
+
+            function formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            }
+
+            // Form submission
+            uploadForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                // Get file from input if selectedFile is not set
+                if (!selectedFile && fileInput.files.length > 0) {
+                    selectedFile = fileInput.files[0];
+                }
+
+                if (!selectedFile) {
+                    alert('Please select a file first');
                     return;
                 }
-                form.dataset.setupDone = 'true';
+
+                if (analyzeBtn) analyzeBtn.disabled = true;
+                if (progress) progress.style.display = 'block';
+                if (results) results.style.display = 'none';
+
+                console.log('Starting upload for:', selectedFile.name);
                 
-                const fileInput = form.querySelector('input[type="file"]');
-                const button = form.querySelector('.analyze-btn, button[type="submit"]');
-                const fileInfo = form.querySelector('.file-info');
-                const fileName = form.querySelector('.file-name');
-                const fileSize = form.querySelector('.file-size');
-                
-                console.log(`Form ${idx}:`, {fileInput: !!fileInput, button: !!button});
-                
-                if (!fileInput || !button) {
-                    console.error(`Form ${idx} missing required elements`);
-                    return;
-                }
-                
-                // File selection handler
-                fileInput.onchange = function(e) {
-                    console.log('File selected!', e.target.files[0]?.name);
-                    if (e.target.files.length > 0) {
-                        const file = e.target.files[0];
-                        if (fileName) fileName.textContent = file.name;
-                        if (fileSize) fileSize.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-                        if (fileInfo) fileInfo.style.display = 'block';
-                        button.disabled = false;
-                        console.log('Button enabled!');
-                    }
-                };
-                
-                // Form submission handler
-                form.onsubmit = function(e) {
-                    console.log('!!! FORM SUBMIT TRIGGERED !!!');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    
-                    const file = fileInput.files[0];
-                    if (!file) {
-                        console.error('No file selected');
-                        alert('Please select a file');
-                        return false;
-                    }
-                    
-                    console.log('Uploading file:', file.name);
-                    button.disabled = true;
-                    const originalText = button.textContent;
-                    button.textContent = 'Analyzing...';
-                    
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    console.log('Sending request to /upload...');
-                    fetch('/upload', {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                try {
+                    // Simulate progress
+                    let progressValue = 0;
+                    const progressInterval = setInterval(function () {
+                        progressValue += 5;
+                        if (progressValue >= 90) {
+                            clearInterval(progressInterval);
+                        }
+                        if (progressBar) progressBar.style.width = progressValue + '%';
+                    }, 100);
+
+                    const response = await fetch('/upload', {
                         method: 'POST',
                         body: formData
-                    })
+                    });
+
+                    clearInterval(progressInterval);
+                    if (progressBar) progressBar.style.width = '100%';
+
+                    const data = await response.json();
+
+                    setTimeout(function () {
+                        if (progress) progress.style.display = 'none';
+                        displayResults(data);
+                        if (analyzeBtn) analyzeBtn.disabled = false;
+                    }, 500);
+
+                } catch (error) {
+                    alert('Error analyzing file: ' + error.message);
+                    if (progress) progress.style.display = 'none';
+                    if (analyzeBtn) analyzeBtn.disabled = false;
+                }
+            });
+
+            function displayResults(data) {
+                if (data.error) {
+                    if (results) {
+                        results.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h3>Error</h3>
+                                <p>${data.error}</p>
+                            </div>
+                        `;
+                        results.style.display = 'block';
+                    }
+                } else if (data.success && data.redirect) {
+                    // Analysis complete! Redirect to dashboard to see full results
+                    if (results) {
+                        results.innerHTML = `
+                            <div class="alert alert-success">
+                                <h3>✅ Analysis Complete!</h3>
+                                <p>Redirecting to dashboard...</p>
+                            </div>
+                        `;
+                        results.style.display = 'block';
+                    }
+
+                    // Redirect after a short delay
+                    setTimeout(function () {
+                        window.location.href = data.redirect;
+                    }, 1000);
+                }
+            }
+        });
+    });
+    */
+</script>
+
+{% endif %}
+
+<!-- Universal upload script that always loads -->
+<script>
+    console.log('=== UNIVERSAL SCRIPT STARTING ===');
+
+    function setupUploadForm() {
+        console.log('Setting up upload handlers...');
+
+        // Find all upload forms
+        const forms = document.querySelectorAll('form[id="uploadForm"]');
+        console.log('Found', forms.length, 'forms');
+
+        if (forms.length === 0) {
+            console.warn('No forms found! Retrying in 100ms...');
+            setTimeout(setupUploadForm, 100);
+            return;
+        }
+
+        forms.forEach((form, idx) => {
+            // Check if already set up
+            if (form.dataset.setupDone) {
+                console.log(`Form ${idx} already set up, skipping`);
+                return;
+            }
+            form.dataset.setupDone = 'true';
+
+            const fileInput = form.querySelector('input[type="file"]');
+            const button = form.querySelector('.analyze-btn, button[type="submit"]');
+            const fileInfo = form.querySelector('.file-info');
+            const fileName = form.querySelector('.file-name');
+            const fileSize = form.querySelector('.file-size');
+
+            console.log(`Form ${idx}:`, { fileInput: !!fileInput, button: !!button });
+
+            if (!fileInput || !button) {
+                console.error(`Form ${idx} missing required elements`);
+                return;
+            }
+
+            // File selection handler
+            fileInput.onchange = function (e) {
+                console.log('File selected!', e.target.files[0]?.name);
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    if (fileName) fileName.textContent = file.name;
+                    if (fileSize) fileSize.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+                    if (fileInfo) fileInfo.style.display = 'block';
+                    button.disabled = false;
+                    console.log('Button enabled!');
+                }
+            };
+
+            // Form submission handler
+            form.onsubmit = function (e) {
+                console.log('!!! FORM SUBMIT TRIGGERED !!!');
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+
+                const file = fileInput.files[0];
+                if (!file) {
+                    console.error('No file selected');
+                    alert('Please select a file');
+                    return false;
+                }
+
+                console.log('Uploading file:', file.name);
+                button.disabled = true;
+                const originalText = button.textContent;
+                button.textContent = 'Analyzing...';
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                console.log('Sending request to /upload...');
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
                     .then(response => {
                         console.log('Response status:', response.status);
                         return response.json();
@@ -516,32 +519,32 @@
                         button.disabled = false;
                         button.textContent = originalText;
                     });
-                    
-                    return false;
-                };
-                
-                console.log(`Form ${idx} setup complete!`);
-            });
-        }
-        
-        // Try to set up immediately
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupUploadForm);
-        } else {
-            setupUploadForm();
-        }
-    </script>
 
-    <div class="features-section"></div>
-        <h2>Features</h2>
-        <ul class="features-list">
-            <li>Multi-architecture support (x86, ARM, MIPS)</li>
-            <li>Interactive code navigation</li>
-            <li>Syntax highlighting</li>
-            <li>Cross-reference analysis</li>
-            <li>Export to HTML and PDF</li>
-            <li>Search functionality</li>
-        </ul>
-    </div>
+                return false;
+            };
+
+            console.log(`Form ${idx} setup complete!`);
+        });
+    }
+
+    // Try to set up immediately
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupUploadForm);
+    } else {
+        setupUploadForm();
+    }
+</script>
+
+<div class="features-section"></div>
+<h2>Features</h2>
+<ul class="features-list">
+    <li>Multi-architecture support (x86, ARM, MIPS)</li>
+    <li>Interactive code navigation</li>
+    <li>Syntax highlighting</li>
+    <li>Cross-reference analysis</li>
+    <li>Export to HTML and PDF</li>
+    <li>Search functionality</li>
+</ul>
+</div>
 </div>
 {% endblock %}
