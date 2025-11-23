@@ -1,8 +1,10 @@
 """Flask web server for DissectX Web UI"""
 import os
 import json
+import hashlib
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, Response
 import tempfile
 
@@ -27,8 +29,15 @@ class WebUIServer:
         self.app = Flask(__name__, 
                         template_folder=self._get_template_folder(),
                         static_folder=self._get_static_folder())
+        self.app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
         self.analysis_results = analysis_results or {}
         self.port = 8080
+        
+        # Setup storage for recent scans
+        self.scans_dir = Path(tempfile.gettempdir()) / 'dissectx_scans'
+        self.scans_dir.mkdir(exist_ok=True)
+        self.scans_db_path = self.scans_dir / 'scans.json'
+        self.recent_scans = self._load_recent_scans()
         
         # Register routes
         self._register_routes()
@@ -40,6 +49,63 @@ class WebUIServer:
     def _get_static_folder(self) -> str:
         """Get the path to the static folder"""
         return str(Path(__file__).parent / 'static')
+    
+    def _load_recent_scans(self) -> List[Dict[str, Any]]:
+        """Load recent scans from storage"""
+        if self.scans_db_path.exists():
+            try:
+                with open(self.scans_db_path, 'r') as f:
+                    return json.load(f)
+            except Exception:
+                return []
+        return []
+    
+    def _save_recent_scans(self):
+        """Save recent scans to storage"""
+        try:
+            with open(self.scans_db_path, 'w') as f:
+                json.dump(self.recent_scans, f, indent=2)
+        except Exception as e:
+            print(f"Error saving scans database: {e}")
+    
+    def _calculate_file_hash(self, file_path: str) -> Dict[str, str]:
+        """Calculate multiple hashes for a file"""
+        hashes = {
+            'md5': hashlib.md5(),
+            'sha1': hashlib.sha1(),
+            'sha256': hashlib.sha256()
+        }
+        
+        with open(file_path, 'rb') as f:
+            while chunk := f.read(8192):
+                for h in hashes.values():
+                    h.update(chunk)
+        
+        return {name: h.hexdigest() for name, h in hashes.items()}
+    
+    def _add_scan_to_history(self, filename: str, file_path: str, hashes: Dict[str, str], 
+                            analysis_summary: Dict[str, Any]):
+        """Add a scan to the recent scans history"""
+        scan_entry = {
+            'id': hashes['sha256'][:16],  # Use first 16 chars of SHA256 as ID
+            'filename': filename,
+            'file_path': str(file_path),
+            'timestamp': datetime.now().isoformat(),
+            'hashes': hashes,
+            'summary': analysis_summary
+        }
+        
+        # Remove duplicate if exists (same SHA256)
+        self.recent_scans = [s for s in self.recent_scans if s['hashes']['sha256'] != hashes['sha256']]
+        
+        # Add to beginning of list
+        self.recent_scans.insert(0, scan_entry)
+        
+        # Keep only last 50 scans
+        self.recent_scans = self.recent_scans[:50]
+        
+        # Save to disk
+        self._save_recent_scans()
     
     def _generate_english_explanation(self, function_id, instructions, pseudocode):
         """Generate a plain English explanation of what the function does"""
@@ -149,6 +215,72 @@ class WebUIServer:
             graph_data = self.analysis_results.get('call_graph', {})
             return render_template('graph.html', 
                                  graph=graph_data)
+        
+        @self.app.route('/recent-scans')
+        def recent_scans():
+            """Recent scans history page"""
+            return render_template('recent_scans.html', 
+                                 scans=self.recent_scans)
+        
+        @self.app.route('/scan/<scan_id>')
+        def view_scan(scan_id):
+            """View a specific scan from history"""
+            # Find the scan
+            scan = next((s for s in self.recent_scans if s['id'] == scan_id), None)
+            
+            if not scan:
+                return render_template('error.html', 
+                                     error=f"Scan {scan_id} not found")
+            
+            # Load the analysis results for this scan
+            scan_file_path = Path(scan['file_path'])
+            
+            if not scan_file_path.exists():
+                return render_template('error.html', 
+                                     error=f"Binary file no longer exists")
+            
+            try:
+                # Re-analyze or load cached results
+                from src.binary_analyzer import BinaryAnalyzer
+                
+                analyzer = BinaryAnalyzer()
+                raw_results = analyzer.analyze_binary(
+                    str(scan_file_path), 
+                    advanced=True, 
+                    emulate=True, 
+                    decrypt_strings=True
+                )
+                
+                # Build results similar to upload route
+                strings = raw_results.get('all_strings', [])
+                security_strings = raw_results.get('security_strings', [])
+                base64_strings = raw_results.get('base64_strings', [])
+                api_calls = raw_results.get('api_calls', {})
+                file_type = raw_results.get('file_type', 'Unknown')
+                advanced_data = raw_results.get('advanced_analysis', {})
+                
+                scan_results = {
+                    'binary_info': {
+                        'filename': scan['filename'],
+                        'filepath': str(scan_file_path),
+                        'file_type': file_type,
+                        'hashes': scan['hashes'],
+                        'scan_date': scan['timestamp'],
+                        'total_strings': len(strings),
+                        'security_strings': len(security_strings)
+                    },
+                    'strings': [{'value': s, 'address': 'N/A'} for s in strings[:500]],
+                    'security_strings': [{'value': s, 'address': 'N/A'} for s in security_strings],
+                    'advanced_analysis': advanced_data
+                }
+                
+                return render_template('scan_detail.html', 
+                                     scan=scan,
+                                     results=scan_results)
+                
+            except Exception as e:
+                return render_template('error.html', 
+                                     error=f"Error loading scan: {str(e)}")
         
         @self.app.route('/function/<function_id>')
         def function_detail(function_id):
@@ -313,12 +445,12 @@ class WebUIServer:
                 return jsonify({'error': 'No file selected'}), 400
             
             try:
-                # Save the uploaded file to a temporary location
-                upload_dir = Path(tempfile.gettempdir()) / 'dissectx_uploads'
-                upload_dir.mkdir(exist_ok=True)
-                
-                file_path = upload_dir / file.filename
+                # Save the uploaded file to a permanent location for history
+                file_path = self.scans_dir / file.filename
                 file.save(str(file_path))
+                
+                # Calculate file hashes
+                file_hashes = self._calculate_file_hash(str(file_path))
                 
                 # Import the analyzer
                 from src.binary_analyzer import BinaryAnalyzer
@@ -456,7 +588,8 @@ class WebUIServer:
                         'format': 'PE' if 'PE' in file_type else 'ELF' if 'ELF' in file_type else 'Unknown',
                         'total_strings': len(strings),
                         'security_strings': len(security_strings),
-                        'base64_strings': len(base64_strings)
+                        'base64_strings': len(base64_strings),
+                        'hashes': file_hashes
                     },
                     'strings': [
                         {'value': s, 'address': 'N/A'} for s in strings[:500]
@@ -482,6 +615,16 @@ class WebUIServer:
                     },
                     'call_graph': call_graph_data
                 }
+                
+                # Add to scan history
+                analysis_summary = {
+                    'file_type': file_type,
+                    'total_strings': len(strings),
+                    'total_functions': len(functions),
+                    'security_flags': len(flags),
+                    'syscalls': len(syscalls)
+                }
+                self._add_scan_to_history(file.filename, file_path, file_hashes, analysis_summary)
                 
                 # Return success response with redirect
                 return jsonify({
