@@ -138,6 +138,10 @@ class UnicornEmulator:
         self.output_strings = []
         self.syscalls_invoked = []
         
+        # Input buffer for stdin (Requirement: Automated Exploitation)
+        self.input_buffer = b''
+        self.input_pos = 0
+        
         # Error tracking (Requirement 14.5)
         self.last_error = None
         self.error_address = None
@@ -359,6 +363,17 @@ class UnicornEmulator:
         self.register_syscall(231, self._syscall_exit_group, "exit_group")
         
         logger.debug("Registered default syscall stubs")
+
+    def set_input(self, data: bytes):
+        """
+        Set input data for stdin (fd 0).
+        
+        Args:
+            data: Bytes to provide to read syscalls
+        """
+        self.input_buffer = data
+        self.input_pos = 0
+        logger.debug(f"Set input buffer: {len(data)} bytes")
     
     def register_syscall(self, syscall_num: int, handler: Callable, name: str = None):
         """
@@ -374,11 +389,45 @@ class UnicornEmulator:
     
     def _syscall_read(self, uc, syscall_num):
         """Stub for read syscall (Requirement 14.3)"""
-        # Return 0 bytes read
+        # Get arguments
         if self.arch == 'x64':
-            uc.reg_write(UC_X86_REG_RAX, 0)
+            fd = uc.reg_read(UC_X86_REG_RDI)
+            buf_addr = uc.reg_read(UC_X86_REG_RSI)
+            count = uc.reg_read(UC_X86_REG_RDX)
         else:
-            uc.reg_write(UC_X86_REG_EAX, 0)
+            # x86 uses stack for args (not fully implemented here for all calling conventions, assuming reg for now or simple stack)
+            # For simplicity in this stub, we'll assume standard linux x86 syscall convention: ebx=fd, ecx=buf, edx=count
+            fd = uc.reg_read(UC_X86_REG_EBX)
+            buf_addr = uc.reg_read(UC_X86_REG_ECX)
+            count = uc.reg_read(UC_X86_REG_EDX)
+
+        # Only handle stdin (fd 0)
+        if fd == 0:
+            # Calculate how much we can read
+            remaining = len(self.input_buffer) - self.input_pos
+            read_count = min(count, remaining)
+            
+            if read_count > 0:
+                chunk = self.input_buffer[self.input_pos : self.input_pos + read_count]
+                try:
+                    uc.mem_write(buf_addr, chunk)
+                    self.input_pos += read_count
+                    logger.debug(f"Read {read_count} bytes from stdin input buffer")
+                except UcError as e:
+                    logger.error(f"Failed to write input to memory: {e}")
+                    read_count = -1 # Error
+            
+            # Return bytes read
+            if self.arch == 'x64':
+                uc.reg_write(UC_X86_REG_RAX, read_count)
+            else:
+                uc.reg_write(UC_X86_REG_EAX, read_count)
+        else:
+            # Return 0 bytes read for other FDs
+            if self.arch == 'x64':
+                uc.reg_write(UC_X86_REG_RAX, 0)
+            else:
+                uc.reg_write(UC_X86_REG_EAX, 0)
     
     def _syscall_write(self, uc, syscall_num):
         """Stub for write syscall (Requirement 14.3)"""
