@@ -763,7 +763,7 @@ class WebUIServer:
                 
                 # Find offset
                 print(f"[*] Finding buffer overflow offset for {filepath}")
-                offset = exploiter.find_offset(filepath)
+                offset, buffer_addr = exploiter.find_offset(filepath)
                 
                 if offset == -1:
                     return jsonify({'error': 'Could not find buffer overflow offset'}), 200
@@ -773,10 +773,11 @@ class WebUIServer:
                 use_polymorph = request.args.get('polymorph', 'false').lower() == 'true'
                 auto_run = request.args.get('autorun', 'true').lower() == 'true'
                 
-                script = exploiter.generate_exploit(filepath, offset, use_encoding, use_polymorph)
+                script = exploiter.generate_exploit(filepath, offset, buffer_addr, use_encoding, use_polymorph)
                 
                 response_data = {
                     'offset': offset,
+                    'buffer_address': hex(buffer_addr) if buffer_addr else None,
                     'script': script
                 }
                 
