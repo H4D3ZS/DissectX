@@ -58,3 +58,5 @@ ROPgadget>=7.4  # ROP gadget finding
 ropper>=1.13.0  # Alternative ROP tool
 scikit-learn>=1.3.0  # ML for strategy selection (future use)
 gmpy2>=2.1.5
+Pillow>=10.0.0
+numpy>=1.24.0
