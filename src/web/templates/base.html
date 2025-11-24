@@ -26,6 +26,26 @@
                 <li><a href="/graph">Call Graph</a></li>
                 <li><a href="/recent-scans">Recent Scans</a></li>
                 <li><a href="/exploitation">Exploitation</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-toolbox me-1"></i>Tools
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
+                        <li><a class="dropdown-item" href="/tools/cyberchef" target="_blank">
+                                <i class="fas fa-hat-wizard me-2"></i>CyberChef
+                            </a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="#" onclick="showHashTool(); return false;">
+                                <i class="fas fa-hashtag me-2"></i>Hash Identifier
+                            </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="showCipherTool(); return false;">
+                                <i class="fas fa-key me-2"></i>Cipher Tools
+                            </a></li>
+                    </ul>
+                </li>
             </ul>
             <div class="nav-actions">
                 <a href="/export/html" class="btn btn-secondary">Export HTML</a>
