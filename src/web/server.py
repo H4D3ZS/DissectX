@@ -235,7 +235,9 @@ class WebUIServer:
         def exploitation():
             """Exploitation tools dashboard"""
             return render_template('exploitation.html', 
-                                 results=self.analysis_results)
+                                 results=self.analysis_results,
+                                 filename=self.current_file,
+                                 filepath=self.current_filepath)
         
         @self.app.route('/scan/<scan_id>')
         def view_scan(scan_id):
