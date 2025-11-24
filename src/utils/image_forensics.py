@@ -23,11 +23,23 @@ class ImageForensics:
     def extract_metadata(image_path: str) -> Dict[str, Any]:
         """Extract EXIF and other metadata from image"""
         img = Image.open(image_path)
+        
+        # Convert info dict values to strings to avoid bytes serialization issues
+        info_dict = {}
+        for key, value in img.info.items():
+            if isinstance(value, bytes):
+                try:
+                    info_dict[key] = value.decode('utf-8', errors='ignore')
+                except:
+                    info_dict[key] = value.hex()
+            else:
+                info_dict[key] = str(value)
+        
         metadata = {
             'format': img.format,
             'mode': img.mode,
-            'size': img.size,
-            'info': dict(img.info)
+            'size': list(img.size),  # Convert tuple to list for JSON
+            'info': info_dict
         }
         
         # Extract EXIF data
@@ -37,7 +49,14 @@ class ImageForensics:
             if exif:
                 for tag_id, value in exif.items():
                     tag = TAGS.get(tag_id, tag_id)
-                    exif_data[tag] = str(value)
+                    # Convert bytes to string
+                    if isinstance(value, bytes):
+                        try:
+                            exif_data[str(tag)] = value.decode('utf-8', errors='ignore')
+                        except:
+                            exif_data[str(tag)] = value.hex()
+                    else:
+                        exif_data[str(tag)] = str(value)
         except:
             pass
         
