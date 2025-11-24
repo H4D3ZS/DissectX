@@ -115,7 +115,7 @@ class LSBExtractor:
                         results.append({
                             'channel': channel,
                             'bits': num_bits,
-                            'data': data,
+                            'data_hex': data.hex(),  # Store as hex string instead of bytes
                             'score': score,
                             'preview': data[:100].decode('utf-8', errors='ignore')
                         })

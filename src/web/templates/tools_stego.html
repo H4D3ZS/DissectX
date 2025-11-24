@@ -213,7 +213,7 @@
 
             // Show top result
             const topResult = data.results[0];
-            lsbExtractedData = topResult.data;
+            lsbExtractedData = topResult.data_hex;
             document.getElementById('lsbOutput').value =
                 `Auto-detected (${topResult.channel}, ${topResult.bits} bits, score: ${topResult.score.toFixed(2)}):\n\n${topResult.preview}`;
             document.getElementById('lsbResult').classList.remove('d-none');

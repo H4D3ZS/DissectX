@@ -1071,10 +1071,6 @@ class WebUIServer:
                 if not results:
                     return jsonify({'results': []})
                 
-                # Convert bytes to hex for JSON
-                for result in results:
-                    result['data'] = result['data'].hex()
-                
                 return jsonify({'results': results})
             except Exception as e:
                 if 'tmp_path' in locals():
