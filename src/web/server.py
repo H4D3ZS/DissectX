@@ -845,6 +845,12 @@ class WebUIServer:
         # CTF TOOLS ROUTES
         # ============================================================================
 
+        @self.app.route('/tools')
+        def tools():
+            """CTF tools dashboard"""
+            from flask import render_template
+            return render_template('tools.html')
+
         @self.app.route('/tools/cyberchef')
         def cyberchef():
             """CyberChef offline integration"""
