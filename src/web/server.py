@@ -41,6 +41,8 @@ class WebUIServer:
         self.app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB max file size
         self.analysis_results = analysis_results or {}
         self.port = 8080
+        self.current_file = None
+        self.current_filepath = None
         
         # Setup storage for recent scans
         self.scans_dir = Path(tempfile.gettempdir()) / 'dissectx_scans'
@@ -235,7 +237,9 @@ class WebUIServer:
         def exploitation():
             """Exploitation tools dashboard"""
             return render_template('exploitation.html', 
-                                 results=self.analysis_results)
+                                 results=self.analysis_results,
+                                 filename=self.current_file,
+                                 filepath=self.current_filepath)
         
         @self.app.route('/scan/<scan_id>')
         def view_scan(scan_id):
@@ -644,6 +648,10 @@ class WebUIServer:
                     },
                     'call_graph': call_graph_data
                 }
+                
+                # Store current file info for exploitation page
+                self.current_file = file.filename
+                self.current_filepath = str(file_path)
                 
                 # Add to scan history
                 analysis_summary = {
