@@ -224,16 +224,28 @@
 
             const data = await response.json();
 
+            // Check for errors
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            if (!data.results || !Array.isArray(data.results)) {
+                alert('Invalid response from server');
+                return;
+            }
+
             const resultDiv = document.getElementById('xorSingleResult');
             const listDiv = document.getElementById('xorSingleList');
 
             let html = '';
             data.results.forEach((result, idx) => {
+                const keyHex = '0x' + result.key.toString(16).padStart(2, '0');
                 html += `
                     <div class="card mb-2">
                         <div class="card-body p-2">
-                            <small class="text-muted">Key: ${result.key} (0x${result.key.toString(16).padStart(2, '0')})</small>
-                            <code class="d-block bg-light p-2 rounded mt-1">${result.plaintext}</code>
+                            <small class="text-muted">Key: ${result.key} (${keyHex}) | Score: ${result.score.toFixed(2)}</small>
+                            <code class="d-block bg-light p-2 rounded mt-1">${escapeHtml(result.plaintext)}</code>
                         </div>
                     </div>
                 `;
@@ -242,6 +254,7 @@
             listDiv.innerHTML = html;
             resultDiv.classList.remove('d-none');
         } catch (e) {
+            console.error('XOR bruteforce error:', e);
             alert('Error: ' + e.message);
         }
     }
@@ -268,14 +281,28 @@
 
             const data = await response.json();
 
+            // Check for errors
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
             document.getElementById('xorKey').textContent = data.key_hex;
             document.getElementById('xorKeyText').textContent = data.key_text;
             document.getElementById('xorPlaintext').textContent = data.plaintext;
 
             document.getElementById('xorMultiResult').classList.remove('d-none');
         } catch (e) {
+            console.error('Repeating XOR error:', e);
             alert('Error: ' + e.message);
         }
+    }
+
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 </script>
 {% endblock %}
