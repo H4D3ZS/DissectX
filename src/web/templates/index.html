@@ -3,95 +3,100 @@
 {% block title %}Dashboard - DissectX{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 px-md-4 py-4">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <h2 class="mb-2"><i class="fas fa-tachometer-alt me-2"></i>DissectX Dashboard</h2>
-            <p class="text-muted mb-0">Upload and analyze binary files for security research and CTF challenges</p>
+<div class="dashboard">
+    <h1>DissectX Dashboard</h1>
+
+    {% if has_results %}
+    <!-- Combined Success Message and Upload Section -->
+    <div class="top-section"
+        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; color: white;">
+        <div
+            style="display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; flex-wrap: wrap;">
+            <!-- Left: Success Message -->
+            <div style="flex: 1; min-width: 300px;">
+                <h2 style="margin: 0 0 10px 0; color: white;">✅ Analysis Complete!</h2>
+                <p style="margin: 0; opacity: 0.95;">Binary analysis has been completed. Navigate to the sections below
+                    to explore the results, or upload a new binary to analyze.</p>
+            </div>
+
+            <!-- Right: Quick Upload -->
+            <div style="flex: 1; min-width: 300px;">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" id="fileInputNew" name="file"
+                        style="opacity: 0; position: absolute; z-index: -1;">
+
+                    <label for="fileInputNew" class="upload-area-compact"
+                        style="display: block; background: rgba(255,255,255,0.2); border: 2px dashed rgba(255,255,255,0.5); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2em; margin-bottom: 8px;">📁</div>
+                        <div style="font-weight: 600; margin-bottom: 5px;">Upload New Binary</div>
+                        <div style="font-size: 0.85em; opacity: 0.9;">Click or drag & drop</div>
+                    </label>
+
+                    <div class="file-info"
+                        style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; backdrop-filter: blur(10px);">
+                        <div class="file-name" style="font-weight: 600; margin-bottom: 5px; color: white;"></div>
+                        <div class="file-size" style="font-size: 0.9em; opacity: 0.9;"></div>
+                    </div>
+
+                    <button type="submit" class="analyze-btn" disabled
+                        style="margin-top: 12px; width: 100%; padding: 12px; background: white; color: #667eea; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                        Analyze Binary
+                    </button>
+
+                    <div class="upload-progress"
+                        style="display: none; margin-top: 12px; height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden;">
+                        <div class="upload-progress-bar"
+                            style="height: 100%; background: white; width: 0%; transition: width 0.3s ease;"></div>
+                    </div>
+
+                    <div id="results" style="display: none; margin-top: 12px;"></div>
+                </form>
+            </div>
         </div>
     </div>
 
-    {% if has_results %}
-</div>
+    <div class="dashboard-grid"></div>
+    <div class="dashboard-card">
+        <h3>Analysis Overview</h3>
+        <p>View comprehensive analysis results including binary information, architecture details, and more.</p>
+        <a href="/analysis" class="btn btn-primary">View Analysis</a>
+    </div>
 
-<!-- Right: Quick Upload -->
-<div style="flex: 1; min-width: 300px;">
-    <form id="uploadForm" enctype="multipart/form-data">
-        <input type="file" id="fileInputNew" name="file" style="opacity: 0; position: absolute; z-index: -1;">
+    <div class="dashboard-card">
+        <h3>Functions</h3>
+        <p>Browse all detected functions, their addresses, and relationships.</p>
+        <a href="/functions" class="btn btn-primary">View Functions</a>
+    </div>
 
-        <label for="fileInputNew" class="upload-area-compact"
-            style="display: block; background: rgba(255,255,255,0.2); border: 2px dashed rgba(255,255,255,0.5); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px);">
-            <div style="font-size: 2em; margin-bottom: 8px;">📁</div>
-            <div style="font-weight: 600; margin-bottom: 5px;">Upload New Binary</div>
-            <div style="font-size: 0.85em; opacity: 0.9;">Click or drag & drop</div>
-        </label>
+    <div class="dashboard-card">
+        <h3>Strings</h3>
+        <p>Explore extracted strings from the binary with context and usage information.</p>
+        <a href="/strings" class="btn btn-primary">View Strings</a>
+    </div>
 
-        <div class="file-info"
-            style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; backdrop-filter: blur(10px);">
-            <div class="file-name" style="font-weight: 600; margin-bottom: 5px; color: white;"></div>
-            <div class="file-size" style="font-size: 0.9em; opacity: 0.9;"></div>
-        </div>
+    <div class="dashboard-card">
+        <h3>Cross-References</h3>
+        <p>Analyze cross-references between functions, strings, and data.</p>
+        <a href="/xrefs" class="btn btn-primary">View XREFs</a>
+    </div>
 
-        <button type="submit" class="analyze-btn" disabled
-            style="margin-top: 12px; width: 100%; padding: 12px; background: white; color: #667eea; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
-            Analyze Binary
-        </button>
+    <div class="dashboard-card">
+        <h3>Advanced Analysis</h3>
+        <p>Syscalls, API hashes, junk code detection, and more advanced features.</p>
+        <a href="/advanced" class="btn btn-primary">View Advanced</a>
+    </div>
 
-        <div class="upload-progress"
-            style="display: none; margin-top: 12px; height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden;">
-            <div class="upload-progress-bar"
-                style="height: 100%; background: white; width: 0%; transition: width 0.3s ease;"></div>
-        </div>
+    <div class="dashboard-card">
+        <h3>Call Graph</h3>
+        <p>Interactive visualization of function call relationships and control flow.</p>
+        <a href="/graph" class="btn btn-primary">View Graph</a>
+    </div>
 
-        <div id="results" style="display: none; margin-top: 12px;"></div>
-    </form>
-</div>
-</div>
-</div>
-
-<div class="dashboard-grid"></div>
-<div class="dashboard-card">
-    <h3>Analysis Overview</h3>
-    <p>View comprehensive analysis results including binary information, architecture details, and more.</p>
-    <a href="/analysis" class="btn btn-primary">View Analysis</a>
-</div>
-
-<div class="dashboard-card">
-    <h3>Functions</h3>
-    <p>Browse all detected functions, their addresses, and relationships.</p>
-    <a href="/functions" class="btn btn-primary">View Functions</a>
-</div>
-
-<div class="dashboard-card">
-    <h3>Strings</h3>
-    <p>Explore extracted strings from the binary with context and usage information.</p>
-    <a href="/strings" class="btn btn-primary">View Strings</a>
-</div>
-
-<div class="dashboard-card">
-    <h3>Cross-References</h3>
-    <p>Analyze cross-references between functions, strings, and data.</p>
-    <a href="/xrefs" class="btn btn-primary">View XREFs</a>
-</div>
-
-<div class="dashboard-card">
-    <h3>Advanced Analysis</h3>
-    <p>Syscalls, API hashes, junk code detection, and more advanced features.</p>
-    <a href="/advanced" class="btn btn-primary">View Advanced</a>
-</div>
-
-<div class="dashboard-card">
-    <h3>Call Graph</h3>
-    <p>Interactive visualization of function call relationships and control flow.</p>
-    <a href="/graph" class="btn btn-primary">View Graph</a>
-</div>
-
-<div class="dashboard-card">
-    <h3>Recent Scans</h3>
-    <p>Browse your scan history with hash verification and quick access to previous analyses.</p>
-    <a href="/recent-scans" class="btn btn-primary">View Recent Scans</a>
-</div>
+    <div class="dashboard-card">
+        <h3>Recent Scans</h3>
+        <p>Browse your scan history with hash verification and quick access to previous analyses.</p>
+        <a href="/recent-scans" class="btn btn-primary">View Recent Scans</a>
+    </div>
 </div>
 
 {% else %}
