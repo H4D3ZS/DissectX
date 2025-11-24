@@ -840,6 +840,160 @@ class WebUIServer:
                                mimetype='application/pdf')
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
+
+        # ============================================================================
+        # CTF TOOLS ROUTES
+        # ============================================================================
+
+        @self.app.route('/tools')
+        def tools():
+            """CTF tools dashboard"""
+            from flask import render_template
+            return render_template('tools.html')
+
+        @self.app.route('/tools/cyberchef')
+        def cyberchef():
+            """CyberChef offline integration"""
+            from flask import render_template
+            return render_template('cyberchef.html')
+
+        @self.app.route('/api/tools/hash/identify', methods=['POST'])
+        def identify_hash():
+            """Identify hash type"""
+            from src.utils.hash_identifier import HashIdentifier
+            from flask import request, jsonify
+            
+            data = request.get_json()
+            hash_string = data.get('hash', '')
+            
+            results = HashIdentifier.identify(hash_string)
+            return jsonify({"results": results})
+
+        @self.app.route('/api/tools/cipher/decode', methods=['POST'])
+        def decode_cipher():
+            """Decode common ciphers"""
+            from src.utils.cipher_tools import CipherTools
+            from flask import request, jsonify
+            
+            data = request.get_json()
+            cipher_type = data.get('type', 'rot13')
+            text = data.get('text', '')
+            key = data.get('key', '')
+            
+            if cipher_type == 'rot13':
+                result = CipherTools.rot13(text)
+            elif cipher_type == 'caesar_brute':
+                result = CipherTools.caesar_bruteforce(text)
+            elif cipher_type == 'atbash':
+                result = CipherTools.atbash(text)
+            elif cipher_type == 'vigenere' and key:
+                result = CipherTools.vigenere_decrypt(text, key)
+            elif cipher_type == 'base64':
+                result = CipherTools.base64_decode(text)
+            elif cipher_type == 'hex':
+                result = CipherTools.hex_decode(text)
+            else:
+                result = "Unknown cipher type"
+            
+            return jsonify({" result": result})
+        
+        # New Crypto Tools API Routes
+        @self.app.route('/tools/crypto')
+        def crypto_tools():
+            """Cryptography tools page"""
+            from flask import render_template
+            return render_template('tools_crypto.html')
+        
+        @self.app.route('/api/crypto/rsa/attack', methods=['POST'])
+        def rsa_attack():
+            """RSA attack endpoint"""
+            from src.utils.rsa_tools import RSATools
+            from flask import request, jsonify
+            
+            data = request.get_json()
+            try:
+                n = int(data.get('n', '0'))
+                e = int(data.get('e', '0'))
+                c = int(data.get('c', '0'))
+                
+                result = RSATools.attack_rsa(n, e, c)
+                
+                # Try to convert plaintext to text
+                plaintext_text = None
+                if result['plaintext']:
+                    try:
+                        # Convert to bytes and decode
+                        plaintext_bytes = result['plaintext'].to_bytes(
+                            (result['plaintext'].bit_length() + 7) // 8, 
+                            byteorder='big'
+                        )
+                        plaintext_text = plaintext_bytes.decode('utf-8', errors='ignore')
+                    except:
+                        pass
+                
+                return jsonify({
+                    'success': result['success'],
+                    'method': result['method'],
+                    'plaintext': str(result['plaintext']) if result['plaintext'] else None,
+                    'plaintext_text': plaintext_text,
+                    'factors': result['factors']
+                })
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 400
+        
+        @self.app.route('/api/crypto/xor/single', methods=['POST'])
+        def xor_single():
+            """Single-byte XOR bruteforce"""
+            from src.utils.xor_tools import XORTools
+            from flask import request, jsonify
+            
+            data = request.get_json()
+            try:
+                ciphertext_hex = data.get('ciphertext', '')
+                ciphertext = bytes.fromhex(ciphertext_hex)
+                
+                results = XORTools.single_byte_xor_bruteforce(ciphertext, top_n=5)
+                
+                formatted_results = []
+                for key, plaintext, score in results:
+                    try:
+                        plaintext_str = plaintext.decode('utf-8', errors='ignore')
+                    except:
+                        plaintext_str = repr(plaintext)
+                    
+                    formatted_results.append({
+                        'key': key,
+                        'plaintext': plaintext_str,
+                        'score': score
+                    })
+                
+                return jsonify({'results': formatted_results})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+        
+        @self.app.route('/api/crypto/xor/repeating', methods=['POST'])
+        def xor_repeating():
+            """Repeating-key XOR breaker"""
+            from src.utils.xor_tools import XORTools
+            from flask import request, jsonify
+            
+            data = request.get_json()
+            try:
+                ciphertext_hex = data.get('ciphertext', '')
+                keylen = data.get('keylen')
+                
+                ciphertext = bytes.fromhex(ciphertext_hex)
+                
+                key, plaintext = XORTools.break_repeating_key_xor(ciphertext, keylen)
+                
+                return jsonify({
+                    'key_hex': key.hex(),
+                    'key_text': key.decode('utf-8', errors='ignore'),
+                    'plaintext': plaintext.decode('utf-8', errors='ignore')
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+    
     
     def _search_results(self, query: str, search_type: str) -> Dict[str, Any]:
         """

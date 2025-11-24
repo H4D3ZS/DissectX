@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Cryptography Tools - DissectX{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold text-primary">
+                <i class="fas fa-lock me-2"></i>Cryptography Tools
+            </h1>
+            <p class="lead text-muted">RSA attacks, XOR analysis, and advanced cipher solving</p>
+        </div>
+    </div>
+
+    <!-- Tools Grid -->
+    <div class="row g-4">
+        <!-- RSA Attack Tool -->
+        <div class="col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-danger text-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-key me-2"></i>RSA Attack Tool</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Automatically attempts multiple RSA attacks: Fermat factorization, Pollard Rho, Wiener's attack,
+                        and small exponent.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label">Modulus (n)</label>
+                        <input type="text" class="form-control font-monospace" id="rsaN" placeholder="Large integer">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Public Exponent (e)</label>
+                        <input type="text" class="form-control font-monospace" id="rsaE"
+                            placeholder="Usually 3 or 65537">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ciphertext (c)</label>
+                        <input type="text" class="form-control font-monospace" id="rsaC"
+                            placeholder="Encrypted message">
+                    </div>
+
+                    <button class="btn btn-danger w-100 mb-3" onclick="attackRSA()">
+                        <i class="fas fa-bolt me-2"></i>Attack RSA
+                    </button>
+
+                    <div id="rsaResult" class="d-none">
+                        <hr>
+                        <div class="alert alert-success" id="rsaSuccess" style="display:none;">
+                            <h6 class="fw-bold">✓ Attack Successful!</h6>
+                            <p class="mb-1"><strong>Method:</strong> <span id="rsaMethod"></span></p>
+                            <p class="mb-1"><strong>Plaintext (decimal):</strong></p>
+                            <code class="d-block bg-dark text-light p-2 rounded" id="rsaPlaintext"></code>
+                            <p class="mb-1 mt-2"><strong>Plaintext (text):</strong></p>
+                            <code class="d-block bg-dark text-light p-2 rounded" id="rsaPlaintextText"></code>
+                            <div id="rsaFactors" style="display:none;">
+                                <p class="mb-1 mt-2"><strong>Factors:</strong></p>
+                                <code class="d-block bg-dark text-light p-2 rounded">
+                                    p = <span id="rsaP"></span><br>
+                                    q = <span id="rsaQ"></span>
+                                </code>
+                            </div>
+                        </div>
+                        <div class="alert alert-danger" id="rsaFail" style="display:none;">
+                            <h6 class="fw-bold">✗ Attack Failed</h6>
+                            <p class="mb-0">Could not break this RSA instance. Try providing factors or use external
+                                tools.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- XOR Bruteforce Tool -->
+        <div class="col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-warning text-dark py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-exchange-alt me-2"></i>XOR Bruteforce</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Bruteforce single-byte XOR or detect and break repeating-key XOR using frequency analysis.
+                    </p>
+
+                    <ul class="nav nav-pills mb-3" id="xorTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="single-xor-tab" data-bs-toggle="tab"
+                                data-bs-target="#singleXor" type="button">Single Byte</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="multi-xor-tab" data-bs-toggle="tab" data-bs-target="#multiXor"
+                                type="button">Repeating Key</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="xorTabContent">
+                        <!-- Single Byte XOR -->
+                        <div class="tab-pane fade show active" id="singleXor" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label">Ciphertext (hex)</label>
+                                <textarea class="form-control font-monospace" id="xorSingleCipher" rows="3"
+                                    placeholder="1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"></textarea>
+                            </div>
+
+                            <button class="btn btn-warning w-100 mb-3" onclick="bruteforceSingleXOR()">
+                                <i class="fas fa-search me-2"></i>Bruteforce
+                            </button>
+
+                            <div id="xorSingleResult" class="d-none">
+                                <h6 class="fw-bold">Top Results:</h6>
+                                <div id="xorSingleList"></div>
+                            </div>
+                        </div>
+
+                        <!-- Repeating Key XOR -->
+                        <div class="tab-pane fade" id="multiXor" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label">Ciphertext (hex)</label>
+                                <textarea class="form-control font-monospace" id="xorMultiCipher" rows="3"
+                                    placeholder="Hex-encoded ciphertext"></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Key Length (optional, auto-detect if empty)</label>
+                                <input type="number" class="form-control" id="xorKeyLen" placeholder="Auto-detect">
+                            </div>
+
+                            <button class="btn btn-warning w-100 mb-3" onclick="breakRepeatingXOR()">
+                                <i class="fas fa-unlock me-2"></i>Break XOR
+                            </button>
+
+                            <div id="xorMultiResult" class="d-none">
+                                <div class="alert alert-success">
+                                    <p class="mb-1"><strong>Key (hex):</strong></p>
+                                    <code class="d-block bg-dark text-light p-2 rounded" id="xorKey"></code>
+                                    <p class="mb-1 mt-2"><strong>Key (text):</strong></p>
+                                    <code class="d-block bg-dark text-light p-2 rounded" id="xorKeyText"></code>
+                                    <p class="mb-1 mt-2"><strong>Plaintext:</strong></p>
+                                    <code class="d-block bg-dark text-light p-2 rounded" id="xorPlaintext"></code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // RSA Attack
+    async function attackRSA() {
+        const n = document.getElementById('rsaN').value.trim();
+        const e = document.getElementById('rsaE').value.trim();
+        const c = document.getElementById('rsaC').value.trim();
+
+        if (!n || !e || !c) {
+            alert('Please fill in all fields');
+            return;
+        }
+
+        const resultDiv = document.getElementById('rsaResult');
+        const successDiv = document.getElementById('rsaSuccess');
+        const failDiv = document.getElementById('rsaFail');
+
+        resultDiv.classList.remove('d-none');
+        successDiv.style.display = 'none';
+        failDiv.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/crypto/rsa/attack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ n, e, c })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('rsaMethod').textContent = data.method;
+                document.getElementById('rsaPlaintext').textContent = data.plaintext;
+                document.getElementById('rsaPlaintextText').textContent = data.plaintext_text || 'N/A';
+
+                if (data.factors) {
+                    document.getElementById('rsaFactors').style.display = 'block';
+                    document.getElementById('rsaP').textContent = data.factors[0];
+                    document.getElementById('rsaQ').textContent = data.factors[1];
+                } else {
+                    document.getElementById('rsaFactors').style.display = 'none';
+                }
+
+                successDiv.style.display = 'block';
+            } else {
+                failDiv.style.display = 'block';
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Single Byte XOR Bruteforce
+    async function bruteforceSingleXOR() {
+        const cipher = document.getElementById('xorSingleCipher').value.trim();
+
+        if (!cipher) {
+            alert('Please enter ciphertext');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/crypto/xor/single', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ciphertext: cipher })
+            });
+
+            const data = await response.json();
+
+            const resultDiv = document.getElementById('xorSingleResult');
+            const listDiv = document.getElementById('xorSingleList');
+
+            let html = '';
+            data.results.forEach((result, idx) => {
+                html += `
+                    <div class="card mb-2">
+                        <div class="card-body p-2">
+                            <small class="text-muted">Key: ${result.key} (0x${result.key.toString(16).padStart(2, '0')})</small>
+                            <code class="d-block bg-light p-2 rounded mt-1">${result.plaintext}</code>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listDiv.innerHTML = html;
+            resultDiv.classList.remove('d-none');
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Repeating Key XOR
+    async function breakRepeatingXOR() {
+        const cipher = document.getElementById('xorMultiCipher').value.trim();
+        const keylen = document.getElementById('xorKeyLen').value.trim();
+
+        if (!cipher) {
+            alert('Please enter ciphertext');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/crypto/xor/repeating', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ciphertext: cipher,
+                    keylen: keylen ? parseInt(keylen) : null
+                })
+            });
+
+            const data = await response.json();
+
+            document.getElementById('xorKey').textContent = data.key_hex;
+            document.getElementById('xorKeyText').textContent = data.key_text;
+            document.getElementById('xorPlaintext').textContent = data.plaintext;
+
+            document.getElementById('xorMultiResult').classList.remove('d-none');
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+</script>
+{% endblock %}
