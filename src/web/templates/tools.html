@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}CTF Tools - DissectX{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2><i class="fas fa-toolbox me-2"></i>CTF Utilities</h2>
+    <p class="text-muted">Quick access to common CTF tools</p>
+
+    <div class="row mt-4">
+        <!-- Hash Identifier -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-hashtag me-2"></i>Hash Identifier</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="hashInput" class="form-label">Enter Hash:</label>
+                        <input type="text" class="form-control font-monospace" id="hashInput"
+                            placeholder="5d41402abc4b2a76b9719d911017c592">
+                    </div>
+                    <button class="btn btn-primary" onclick="identifyHash()">
+                        <i class="fas fa-search me-2"></i>Identify
+                    </button>
+                    <div id="hashResults" class="mt-3" style="display:none;">
+                        <h6>Possible Hash Types:</h6>
+                        <div id="hashResultsContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cipher Tools -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-key me-2"></i>Cipher Tools</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="cipherType" class="form-label">Cipher Type:</label>
+                        <select class="form-select" id="cipherType">
+                            <option value="rot13">ROT13</option>
+                            <option value="caesar_brute">Caesar (Brute Force)</option>
+                            <option value="atbash">Atbash</option>
+                            <option value="base64">Base64 Decode</option>
+                            <option value="hex">Hex Decode</option>
+                            <option value="vigenere">Vigenere (needs key)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cipherInput" class="form-label">Input Text:</label>
+                        <textarea class="form-control font-monospace" id="cipherInput" rows="3"
+                            placeholder="Enter encrypted text..."></textarea>
+                    </div>
+                    <div class="mb-3" id="keyInput" style="display:none;">
+                        <label for="cipherKey" class="form-label">Key:</label>
+                        <input type="text" class="form-control" id="cipherKey" placeholder="Enter key">
+                    </div>
+                    <button class="btn btn-success" onclick="decodeCipher()">
+                        <i class="fas fa-unlock me-2"></i>Decode
+                    </button>
+                    <div id="cipherResults" class="mt-3" style="display:none;">
+                        <h6>Result:</h6>
+                        <pre id="cipherResultsContent" class="bg-dark text-light p-3 rounded"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CyberChef Link -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-hat-wizard me-2"></i>CyberChef</h5>
+                    <p class="card-text">For advanced operations, use CyberChef - the Swiss Army knife of data
+                        transformation.</p>
+                    <a href="/tools/cyberchef" target="_blank" class="btn btn-warning">
+                        <i class="fas fa-external-link-alt me-2"></i>Open CyberChef
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Show/hide key input based on cipher type
+    document.getElementById('cipherType').addEventListener('change', function () {
+        const keyInput = document.getElementById('keyInput');
+        keyInput.style.display = this.value === 'vigenere' ? 'block' : 'none';
+    });
+
+    async function identifyHash() {
+        const hash = document.getElementById('hashInput').value.trim();
+        if (!hash) {
+            alert('Please enter a hash');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/tools/hash/identify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hash: hash })
+            });
+
+            const data = await response.json();
+            const resultsDiv = document.getElementById('hashResults');
+            const contentDiv = document.getElementById('hashResultsContent');
+
+            if (data.results && data.results.length > 0) {
+                let html = '<ul class="list-group">';
+                data.results.forEach(result => {
+                    const badgeClass = result.confidence === 'high' ? 'bg-success' :
+                        result.confidence === 'medium' ? 'bg-warning' : 'bg-secondary';
+                    html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                    ${result.type}
+                    <span class="badge ${badgeClass}">${result.confidence}</span>
+                </li>`;
+                });
+                html += '</ul>';
+                contentDiv.innerHTML = html;
+                resultsDiv.style.display = 'block';
+            } else {
+                contentDiv.innerHTML = '<div class="alert alert-warning">Unknown hash type</div>';
+                resultsDiv.style.display = 'block';
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function decodeCipher() {
+        const type = document.getElementById('cipherType').value;
+        const text = document.getElementById('cipherInput').value.trim();
+        const key = document.getElementById('cipherKey').value.trim();
+
+        if (!text) {
+            alert('Please enter text to decode');
+            return;
+        }
+
+        if (type === 'vigenere' && !key) {
+            alert('Vigenere cipher requires a key');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/tools/cipher/decode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: type, text: text, key: key })
+            });
+
+            const data = await response.json();
+            const resultsDiv = document.getElementById('cipherResults');
+            const contentDiv = document.getElementById('cipherResultsContent');
+
+            if (type === 'caesar_brute') {
+                // Display all 26 shifts
+                let html = '';
+                data.result.forEach(([shift, plaintext]) => {
+                    html += `Shift ${shift}: ${plaintext}\n`;
+                });
+                contentDiv.textContent = html;
+            } else {
+                contentDiv.textContent = data.result;
+            }
+
+            resultsDiv.style.display = 'block';
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}
