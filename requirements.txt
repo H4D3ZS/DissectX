@@ -50,7 +50,7 @@ pyparsing==3.1.1
 packaging==23.2
 six==1.16.0
 bcrypt==4.1.2
-cryptography==41.0.7
+cryptography==44.0.1
 pynacl==1.5.0
 
 # Advanced exploitation dependencies
