@@ -118,115 +118,108 @@
 </head>
 
 <body>
-    <nav class="navbar">
-        <!-- Responsive Bootstrap Navbar -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="/">
-                    <i class="fas fa-microscope me-2"></i>DissectX
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="/">
+                    <i class="fas fa-home me-1"></i>Dashboard
                 </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/">
-                                <i class="fas fa-home me-1"></i>Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/analysis">
-                                <i class="fas fa-search me-1"></i>Analysis
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/functions">
-                                <i class="fas fa-code me-1"></i>Functions
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/strings">
-                                <i class="fas fa-font me-1"></i>Strings
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/xrefs">
-                                <i class="fas fa-project-diagram me-1"></i>Cross-References
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/advanced">
-                                <i class="fas fa-cogs me-1"></i>Advanced
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/graph">
-                                <i class="fas fa-sitemap me-1"></i>Call Graph
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/recent-scans">
-                                <i class="fas fa-history me-1"></i>Recent Scans
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/exploitation">
-                                <i class="fas fa-bomb me-1"></i>Exploitation
-                            </a>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button"
-                                data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-toolbox me-1"></i>Tools
-                            </a>
-                            <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
-                                <li><a class="dropdown-item" href="/tools">
-                                        <i class="fas fa-tools me-2"></i>All Tools
-                                    </a></li>
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                                <li><a class="dropdown-item" href="/tools/cyberchef" target="_blank">
-                                        <i class="fas fa-hat-wizard me-2"></i>CyberChef
-                                    </a></li>
-                                <li><a class="dropdown-item" href="/tools#hash">
-                                        <i class="fas fa-hashtag me-2"></i>Hash Identifier
-                                    </a></li>
-                                <li><a class="dropdown-item" href="/tools#cipher">
-                                        <i class="fas fa-key me-2"></i>Cipher Tools
-                                    </a></li>
-                            </ul>
-                        </li>
-                    </ul>
-                    <div class="d-flex gap-2">
-                        <a href="/export/html" class="btn btn-outline-light btn-sm">
-                            <i class="fas fa-file-code me-1"></i>Export HTML
-                        </a>
-                        <a href="/export/pdf" class="btn btn-outline-light btn-sm">
-                            <i class="fas fa-file-pdf me-1"></i>Export PDF
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </nav>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/analysis">
+                    <i class="fas fa-search me-1"></i>Analysis
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/functions">
+                    <i class="fas fa-code me-1"></i>Functions
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/strings">
+                    <i class="fas fa-font me-1"></i>Strings
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/xrefs">
+                    <i class="fas fa-project-diagram me-1"></i>Cross-References
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/advanced">
+                    <i class="fas fa-cogs me-1"></i>Advanced
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/graph">
+                    <i class="fas fa-sitemap me-1"></i>Call Graph
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/recent-scans">
+                    <i class="fas fa-history me-1"></i>Recent Scans
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/exploitation">
+                    <i class="fas fa-bomb me-1"></i>Exploitation
+                </a>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                    <i class="fas fa-toolbox me-1"></i>Tools
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
+                    <li><a class="dropdown-item" href="/tools">
+                            <i class="fas fa-tools me-2"></i>All Tools
+                        </a></li>
+                    <li>
+                        <hr class="dropdown-divider">
+                    </li>
+                    <li><a class="dropdown-item" href="/tools/cyberchef" target="_blank">
+                            <i class="fas fa-hat-wizard me-2"></i>CyberChef
+                        </a></li>
+                    <li><a class="dropdown-item" href="/tools#hash">
+                            <i class="fas fa-hashtag me-2"></i>Hash Identifier
+                        </a></li>
+                    <li><a class="dropdown-item" href="/tools#cipher">
+                            <i class="fas fa-key me-2"></i>Cipher Tools
+                        </a></li>
+                </ul>
+            </li>
+        </ul>
+        <div class="d-flex gap-2">
+            <a href="/export/html" class="btn btn-outline-light btn-sm">
+                <i class="fas fa-file-code me-1"></i>Export HTML
+            </a>
+            <a href="/export/pdf" class="btn btn-outline-light btn-sm">
+                <i class="fas fa-file-pdf me-1"></i>Export PDF
+            </a>
+        </div>
+    </div>
+    </div>
+    </nav>
 
-        <!-- Main Content -->
-        <main class="container-fluid">
-            {% block content %}{% endblock %}
-        </main>
+    <!-- Main Content -->
+    <main class="container-fluid">
+        {% block content %}{% endblock %}
+    </main>
 
-        <footer class="footer">
-            <div class="footer-container">
-                <p>2025 DissectX - Binary Analysis Framework</p>
-            </div>
-        </footer>
+    <footer class="footer">
+        <div class="footer-container">
+            <p>2025 DissectX - Binary Analysis Framework</p>
+        </div>
+    </footer>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-        <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-        {% block extra_js %}{% endblock %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>
