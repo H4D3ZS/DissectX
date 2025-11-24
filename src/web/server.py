@@ -236,15 +236,17 @@ class WebUIServer:
         @self.app.route('/exploitation')
         def exploitation():
             """Exploitation tools dashboard"""
-            return render_template('exploitation.html', 
-                              # Store analysis results
+            # Store analysis results
             self.analysis_results = results
             
-            # Store current file info
+            # Store current file info for exploitation page
             self.current_file = filename
             self.current_filepath = filepath
             
-            # Save to recent scansme=self.current_file,
+            # Save to recent scans
+            return render_template('exploitation.html', 
+                                 results=self.analysis_results,
+                                 filename=self.current_file,
                                  filepath=self.current_filepath)
         
         @self.app.route('/scan/<scan_id>')
