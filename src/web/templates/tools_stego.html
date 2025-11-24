@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}Steganography Tools - DissectX{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold text-success">
+                <i class="fas fa-image me-2"></i>Steganography Tools
+            </h1>
+            <p class="lead text-muted">Extract hidden data from images using LSB, color planes, and forensics</p>
+        </div>
+    </div>
+
+    <!-- File Upload Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-upload me-2"></i>Upload Image</h5>
+                    <input type="file" class="form-control" id="stegoImageUpload" accept="image/*">
+                    <small class="text-muted">Supports PNG, BMP, JPG, and other image formats</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tools Grid -->
+    <div class="row g-4">
+        <!-- LSB Extractor -->
+        <div class="col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-success text-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-microscope me-2"></i>LSB Extractor</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Extract hidden data from Least Significant Bits of image pixels.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label">Channel</label>
+                        <select class="form-select" id="lsbChannel">
+                            <option value="all">All Channels</option>
+                            <option value="R">Red</option>
+                            <option value="G">Green</option>
+                            <option value="B">Blue</option>
+                            <option value="A">Alpha</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Bit Depth</label>
+                        <select class="form-select" id="lsbBits">
+                            <option value="1">1 bit (most common)</option>
+                            <option value="2">2 bits</option>
+                            <option value="3">3 bits</option>
+                            <option value="4">4 bits</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-success w-100 mb-2" onclick="extractLSB()">
+                        <i class="fas fa-download me-2"></i>Extract LSB
+                    </button>
+
+                    <button class="btn btn-outline-success w-100" onclick="autoDetectLSB()">
+                        <i class="fas fa-magic me-2"></i>Auto-Detect Hidden Data
+                    </button>
+
+                    <div id="lsbResult" class="mt-3 d-none">
+                        <hr>
+                        <h6 class="fw-bold">Extracted Data:</h6>
+                        <textarea class="form-control font-monospace bg-light" id="lsbOutput" rows="6"
+                            readonly></textarea>
+                        <button class="btn btn-sm btn-outline-secondary mt-2 w-100" onclick="downloadLSBData()">
+                            <i class="fas fa-download me-2"></i>Download as File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Forensics -->
+        <div class="col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-info text-white py-3">
+                    <h5 class="card-title mb-0"><i class="fas fa-search me-2"></i>Image Forensics</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Analyze image using color planes, bit planes, and transformations (like Stegsolve).
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label">Analysis Type</label>
+                        <select class="form-select" id="forensicsType">
+                            <option value="metadata">Metadata & EXIF</option>
+                            <option value="color_planes">Color Planes (R/G/B/A)</option>
+                            <option value="bit_planes">Bit Planes (0-7)</option>
+                            <option value="transformations">Transformations</option>
+                            <option value="anomalies">Detect Anomalies</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="bitPlaneChannel" style="display:none;">
+                        <label class="form-label">Channel for Bit Planes</label>
+                        <select class="form-select" id="bitChannel">
+                            <option value="red">Red</option>
+                            <option value="green">Green</option>
+                            <option value="blue">Blue</option>
+                            <option value="alpha">Alpha</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-info w-100 text-white" onclick="analyzeImage()">
+                        <i class="fas fa-microscope me-2"></i>Analyze Image
+                    </button>
+
+                    <div id="forensicsResult" class="mt-3 d-none">
+                        <hr>
+                        <div id="forensicsOutput"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let uploadedFile = null;
+    let lsbExtractedData = null;
+
+    // Handle file upload
+    document.getElementById('stegoImageUpload').addEventListener('change', function (e) {
+        uploadedFile = e.target.files[0];
+        if (uploadedFile) {
+            // Reset results
+            document.getElementById('lsbResult').classList.add('d-none');
+            document.getElementById('forensicsResult').classList.add('d-none');
+        }
+    });
+
+    // Show/hide bit plane channel selector
+    document.getElementById('forensicsType').addEventListener('change', function (e) {
+        const channelDiv = document.getElementById('bitPlaneChannel');
+        if (e.target.value === 'bit_planes') {
+            channelDiv.style.display = 'block';
+        } else {
+            channelDiv.style.display = 'none';
+        }
+    });
+
+    // LSB Extraction
+    async function extractLSB() {
+        if (!uploadedFile) {
+            alert('Please upload an image first');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', uploadedFile);
+        formData.append('channel', document.getElementById('lsbChannel').value);
+        formData.append('bits', document.getElementById('lsbBits').value);
+
+        try {
+            const response = await fetch('/api/stego/lsb/extract', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            lsbExtractedData = data.data;
+            document.getElementById('lsbOutput').value = data.preview || data.data;
+            document.getElementById('lsbResult').classList.remove('d-none');
+        } catch (e) {
+            alert('Error extracting LSB: ' + e.message);
+        }
+    }
+
+    // Auto-detect LSB
+    async function autoDetectLSB() {
+        if (!uploadedFile) {
+            alert('Please upload an image first');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', uploadedFile);
+
+        try {
+            const response = await fetch('/api/stego/lsb/auto', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.error || !data.results || data.results.length === 0) {
+                alert('No hidden data detected');
+                return;
+            }
+
+            // Show top result
+            const topResult = data.results[0];
+            lsbExtractedData = topResult.data;
+            document.getElementById('lsbOutput').value =
+                `Auto-detected (${topResult.channel}, ${topResult.bits} bits, score: ${topResult.score.toFixed(2)}):\n\n${topResult.preview}`;
+            document.getElementById('lsbResult').classList.remove('d-none');
+        } catch (e) {
+            alert('Error auto-detecting: ' + e.message);
+        }
+    }
+
+    // Download LSB data
+    function downloadLSBData() {
+        if (!lsbExtractedData) return;
+
+        const blob = new Blob([lsbExtractedData], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'extracted_lsb.bin';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // Image Forensics
+    async function analyzeImage() {
+        if (!uploadedFile) {
+            alert('Please upload an image first');
+            return;
+        }
+
+        const analysisType = document.getElementById('forensicsType').value;
+        const formData = new FormData();
+        formData.append('image', uploadedFile);
+        formData.append('type', analysisType);
+
+        if (analysisType === 'bit_planes') {
+            formData.append('channel', document.getElementById('bitChannel').value);
+        }
+
+        try {
+            const response = await fetch('/api/stego/forensics', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            displayForensicsResult(data, analysisType);
+        } catch (e) {
+            alert('Error analyzing image: ' + e.message);
+        }
+    }
+
+    function displayForensicsResult(data, type) {
+        const outputDiv = document.getElementById('forensicsOutput');
+        let html = '';
+
+        if (type === 'metadata') {
+            html = '<h6 class="fw-bold">Metadata:</h6>';
+            html += `<pre class="bg-light p-3 rounded">${JSON.stringify(data, null, 2)}</pre>`;
+        } else if (type === 'color_planes' || type === 'bit_planes' || type === 'transformations') {
+            html = '<div class="row g-2">';
+            for (const [name, imgData] of Object.entries(data)) {
+                html += `
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">${name}</h6>
+                                <img src="data:image/png;base64,${imgData}" class="img-fluid rounded" alt="${name}">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+        } else if (type === 'anomalies') {
+            html = '<h6 class="fw-bold">Anomalies Detected:</h6>';
+            if (data.length === 0) {
+                html += '<p class="text-muted">No anomalies detected</p>';
+            } else {
+                data.forEach(anomaly => {
+                    html += `
+                        <div class="alert alert-warning">
+                            <strong>${anomaly.type}:</strong> ${anomaly.description}<br>
+                            <code>${anomaly.data}</code>
+                        </div>
+                    `;
+                });
+            }
+        }
+
+        outputDiv.innerHTML = html;
+        document.getElementById('forensicsResult').classList.remove('d-none');
+    }
+</script>
+{% endblock %}

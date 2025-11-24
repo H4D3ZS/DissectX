@@ -993,6 +993,139 @@ class WebUIServer:
                 })
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
+        
+        # Steganography Tools API Routes
+        @self.app.route('/tools/stego')
+        def stego_tools():
+            """Steganography tools page"""
+            from flask import render_template
+            return render_template('tools_stego.html')
+        
+        @self.app.route('/api/stego/lsb/extract', methods=['POST'])
+        def lsb_extract():
+            """LSB extraction endpoint"""
+            from src.utils.steg_lsb import LSBExtractor
+            from flask import request, jsonify
+            import os
+            import tempfile
+            
+            if 'image' not in request.files:
+                return jsonify({'error': 'No image provided'}), 400
+            
+            image_file = request.files['image']
+            channel = request.form.get('channel', 'all')
+            bits = int(request.form.get('bits', 1))
+            
+            try:
+                # Save uploaded file temporarily
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                    image_file.save(tmp.name)
+                    tmp_path = tmp.name
+                
+                # Extract LSB
+                data = LSBExtractor.extract_lsb(tmp_path, bits, channel)
+                
+                # Clean up
+                os.unlink(tmp_path)
+                
+                # Try to decode as text for preview
+                try:
+                    preview = data[:500].decode('utf-8', errors='ignore')
+                except:
+                    preview = data[:500].hex()
+                
+                return jsonify({
+                    'data': data.hex(),
+                    'preview': preview,
+                    'length': len(data)
+                })
+            except Exception as e:
+                if 'tmp_path' in locals():
+                    try:
+                        os.unlink(tmp_path)
+                    except:
+                        pass
+                return jsonify({'error': str(e)}), 400
+        
+        @self.app.route('/api/stego/lsb/auto', methods=['POST'])
+        def lsb_auto():
+            """Auto-detect LSB hidden data"""
+            from src.utils.steg_lsb import LSBExtractor
+            from flask import request, jsonify
+            import os
+            import tempfile
+            
+            if 'image' not in request.files:
+                return jsonify({'error': 'No image provided'}), 400
+            
+            image_file = request.files['image']
+            
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                    image_file.save(tmp.name)
+                    tmp_path = tmp.name
+                
+                results = LSBExtractor.auto_detect_hidden_data(tmp_path)
+                os.unlink(tmp_path)
+                
+                if not results:
+                    return jsonify({'results': []})
+                
+                # Convert bytes to hex for JSON
+                for result in results:
+                    result['data'] = result['data'].hex()
+                
+                return jsonify({'results': results})
+            except Exception as e:
+                if 'tmp_path' in locals():
+                    try:
+                        os.unlink(tmp_path)
+                    except:
+                        pass
+                return jsonify({'error': str(e)}), 400
+        
+        @self.app.route('/api/stego/forensics', methods=['POST'])
+        def stego_forensics():
+            """Image forensics analysis"""
+            from src.utils.image_forensics import ImageForensics
+            from flask import request, jsonify
+            import os
+            import tempfile
+            
+            if 'image' not in request.files:
+                return jsonify({'error': 'No image provided'}), 400
+            
+            image_file = request.files['image']
+            analysis_type = request.form.get('type', 'metadata')
+            
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                    image_file.save(tmp.name)
+                    tmp_path = tmp.name
+                
+                if analysis_type == 'metadata':
+                    result = ImageForensics.extract_metadata(tmp_path)
+                elif analysis_type == 'color_planes':
+                    result = ImageForensics.separate_color_planes(tmp_path)
+                elif analysis_type == 'bit_planes':
+                    channel = request.form.get('channel', 'red')
+                    result = ImageForensics.extract_bit_planes(tmp_path, channel)
+                elif analysis_type == 'transformations':
+                    result = ImageForensics.apply_transformations(tmp_path)
+                elif analysis_type == 'anomalies':
+                    result = ImageForensics.detect_anomalies(tmp_path)
+                else:
+                    result = {'error': 'Unknown analysis type'}
+                
+                os.unlink(tmp_path)
+                return jsonify(result)
+            except Exception as e:
+                if 'tmp_path' in locals():
+                    try:
+                        os.unlink(tmp_path)
+                    except:
+                        pass
+                return jsonify({'error': str(e)}), 400
     
     
     def _search_results(self, query: str, search_type: str) -> Dict[str, Any]:
