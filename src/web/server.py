@@ -774,7 +774,10 @@ class WebUIServer:
                 offset, buffer_addr = exploiter.find_offset(filepath)
                 
                 if offset == -1:
-                    return jsonify({'error': 'Could not find buffer overflow offset'}), 200
+                    return jsonify({
+                        'success': False,
+                        'error': 'Could not find buffer overflow offset. The binary may not be vulnerable or requires manual analysis.'
+                    }), 400
                 
                 # Generate exploit
                 use_encoding = request.args.get('encode', 'false').lower() == 'true'
@@ -794,9 +797,10 @@ class WebUIServer:
                 print(f"[DEBUG] generate_exploit returned, script length: {len(script)}")
                 
                 response_data = {
+                    'success': True,
                     'offset': offset,
                     'buffer_address': hex(buffer_addr) if buffer_addr else None,
-                    'script': script
+                    'exploit_code': script  # Changed from 'script' to 'exploit_code'
                 }
                 
                 # Auto-execute if requested
