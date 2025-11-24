@@ -236,14 +236,6 @@ class WebUIServer:
         @self.app.route('/exploitation')
         def exploitation():
             """Exploitation tools dashboard"""
-            # Store analysis results
-            self.analysis_results = results
-            
-            # Store current file info for exploitation page
-            self.current_file = filename
-            self.current_filepath = filepath
-            
-            # Save to recent scans
             return render_template('exploitation.html', 
                                  results=self.analysis_results,
                                  filename=self.current_file,
@@ -656,6 +648,10 @@ class WebUIServer:
                     },
                     'call_graph': call_graph_data
                 }
+                
+                # Store current file info for exploitation page
+                self.current_file = file.filename
+                self.current_filepath = str(file_path)
                 
                 # Add to scan history
                 analysis_summary = {
