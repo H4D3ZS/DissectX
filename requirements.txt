@@ -27,7 +27,7 @@ r2pipe>=1.8.0
 pwntools>=4.11.0
 
 Flask==3.0.0
-Werkzeug==3.0.1
+Werkzeug==3.0.6
 capstone==5.0.1
 unicorn==2.0.1.post1
 pwntools==4.11.0
