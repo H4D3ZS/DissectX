@@ -997,6 +997,8 @@ class BinaryAnalyzer:
                 except Exception as e:
                     # analysis['advanced_analysis']['error'] = str(e)
                     pass
+            
+            analysis['advanced_analysis'] = advanced_results
         
         return analysis
     
