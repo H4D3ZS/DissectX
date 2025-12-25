@@ -143,26 +143,54 @@ body {
 }
 
 /* Modern Inputs */
-.form-input,
+.input-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
 .form-select {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border);
   color: white;
   padding: 0.75rem 1rem;
   border-radius: 6px;
-  width: 100%;
+  width: auto;
+  min-width: 180px;
+  cursor: pointer;
+}
+
+.form-input {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  color: var(--accent-gold);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  flex: 1;
+  /* Take up all available space */
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .form-input:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 15px var(--primary-glow);
 }
 
 /* Typography */
 h1,
 h2,
-h3 {
+h3,
+h4 {
   letter-spacing: -0.5px;
   margin-bottom: 1rem;
 }

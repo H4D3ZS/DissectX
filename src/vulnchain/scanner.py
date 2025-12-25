@@ -128,7 +128,7 @@ class VulnChainScanner:
         
         if recommendations:
             self._emit_log("[HEXSTRIKE] AI Priority Recommendations:", "SUCCESS")
-            for rec in recommendations[:5]: # Top 5
+            for rec in recommendations[:12]: # Top 12 suggestions
                 name = rec['name']
                 score = int(rec['effectiveness'] * 100)
                 self._emit_log(f"  > Suggestion: Use {name} (Effectiveness: {score}%)", "INFO")

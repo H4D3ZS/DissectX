@@ -1,36 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import socket from '../utils/socket';
 
-function LiveLog() {
-    const [logs, setLogs] = useState([]);
+function LiveLog({ logs, onClear }) {
     const [viewState, setViewState] = useState('normal');
     const [height, setHeight] = useState(200);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const logEndRef = useRef(null);
     const containerRef = useRef(null);
-
-    useEffect(() => {
-        socket.on('connect', () => {
-            console.log('[SOCKET] Connected to Backend');
-            addLog('Connected to Real-time Operations Center', 'INFO');
-        });
-
-        socket.on('log', (data) => {
-            console.log('[SOCKET] Log Received:', data);
-            addLog(data.data, data.level);
-        });
-
-        socket.on('clear_logs', () => {
-            clearLogs();
-        });
-
-        return () => {
-            socket.off('connect');
-            socket.off('log');
-            socket.off('clear_logs');
-            socket.off('disconnect');
-        };
-    }, []);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -38,13 +14,6 @@ function LiveLog() {
             logEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [logs]);
-
-    const addLog = (message, level) => {
-        const timestamp = new Date().toLocaleTimeString();
-        setLogs(prev => [...prev.slice(-199), { timestamp, message, level }]); // Keep more logs
-    };
-
-    const clearLogs = () => setLogs([]);
 
     const toggleMinimize = (e) => {
         e.stopPropagation();
@@ -87,12 +56,14 @@ function LiveLog() {
             <div className="log-resize-handle" onMouseDown={startResizing} />
 
             <div className="log-header">
-                <span onClick={toggleMinimize}>
-                    <i className="fas fa-terminal me-2"></i>Live Operations
-                </span>
+                <div onClick={toggleMinimize} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fas fa-terminal" style={{ color: 'var(--primary)' }}></i>
+                    <span style={{ fontWeight: 'bold', letterSpacing: '1px' }}>LIVE OPERATIONS CENTER</span>
+                    {logs.length > 0 && <span className="badge" style={{ background: 'rgba(255,255,255,0.1)', fontSize: '0.6rem' }}>{logs.length} EVENTS</span>}
+                </div>
                 <div className="log-controls">
-                    <button onClick={(e) => { e.stopPropagation(); clearLogs(); }} className="btn-icon" title="Clear Logs">
-                        <i className="fas fa-trash"></i>
+                    <button onClick={(e) => { e.stopPropagation(); onClear(); }} className="btn btn-sm btn-primary" style={{ fontSize: '0.7rem', padding: '2px 8px', marginRight: '10px' }}>
+                        <i className="fas fa-trash me-1"></i> CLEAR TERMINAL
                     </button>
                     <button onClick={toggleFullscreen} className="btn-icon" title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
                         <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>

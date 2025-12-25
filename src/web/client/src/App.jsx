@@ -9,12 +9,37 @@ import Decompiler from './pages/Decompiler';
 import Debugger from './pages/Debugger';
 import Settings from './pages/Settings';
 import MobileRev from './pages/MobileRev';
+import Reports from './pages/Reports';
 import './App.css';
 
 const AppContent = () => {
   const location = useLocation();
-  // Hide LiveLog on Dashboard and Settings pages
-  const showLiveLog = !['/', '/settings'].includes(location.pathname);
+  const [logs, setLogs] = useState([]);
+
+  // Hide LiveLog on Dashboard, Settings, and Reports pages - but keep it mounted!
+  const isHiddenPage = ['/', '/settings', '/reports'].includes(location.pathname);
+
+  useEffect(() => {
+    const handleLog = (data) => {
+      const timestamp = new Date().toLocaleTimeString();
+      setLogs(prev => [...prev.slice(-499), { timestamp, message: data.data, level: data.level }]);
+    };
+
+    const handleClear = () => setLogs([]);
+
+    socket.on('log', handleLog);
+    socket.on('clear_logs', handleClear);
+
+    return () => {
+      socket.off('log', handleLog);
+      socket.off('clear_logs', handleClear);
+    };
+  }, []);
+
+  const clearLogs = () => {
+    socket.emit('request_clear_logs');
+    setLogs([]);
+  };
 
   return (
     <div className="app-container">
@@ -28,9 +53,12 @@ const AppContent = () => {
           <Route path="/debugger" element={<Debugger />} />
           <Route path="/mobile-rev" element={<MobileRev />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/reports" element={<Reports />} />
         </Routes>
       </main>
-      {showLiveLog && <LiveLog />}
+      <div style={{ display: isHiddenPage ? 'none' : 'block' }}>
+        <LiveLog logs={logs} onClear={clearLogs} />
+      </div>
     </div>
   );
 };

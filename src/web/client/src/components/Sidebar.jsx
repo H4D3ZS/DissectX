@@ -23,6 +23,9 @@ function Sidebar() {
                 <NavLink to="/debugger" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
                     <i className="fas fa-bug"></i> Dynamic Analysis
                 </NavLink>
+                <NavLink to="/reports" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+                    <i className="fas fa-file-contract"></i> Security Audit Reports
+                </NavLink>
                 <div className="nav-divider"></div>
                 <NavLink to="/mobile-rev" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
                     <i className="fas fa-mobile-alt"></i> Mobile Security Research

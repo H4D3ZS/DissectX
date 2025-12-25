@@ -361,20 +361,29 @@ class WebUIServer:
         @self.app.route('/', defaults={'path': ''})
         @self.app.route('/<path:path>')
         def serve_spa(path):
-            """Catch-all for SPA routing with intelligent Dev-Proxy"""
-            # 1. Dev Mode Detection & Proxying
-            # Skip proxy for API and socket.io
-            if not (path.startswith('api/') or path.startswith('socket.io')) and os.environ.get('FLASK_ENV') != 'production':
-                import requests
+            """Catch-all for SPA routing with robust Stdlib Proxy (Zero-dependency)"""
+            # 1. Dev Mode Detection (Zero-dependency check)
+            is_backend_route = any(path.startswith(p) for p in ['api', 'socket.io', 'upload', 'static'])
+            if not is_backend_route and os.environ.get('FLASK_ENV') != 'production':
+                from urllib.request import urlopen, Request
+                from urllib.error import URLError
                 try:
-                    # Check if Vite Dev Server is alive on 5173
+                    # Target Vite Dev Server
                     target_url = f"http://localhost:5173/{path if path else ''}"
-                    resp = requests.get(target_url, timeout=0.1, stream=False)
-                    if resp.status_code < 400:
-                        return Response(resp.content, resp.status_code, resp.headers.items())
-                except Exception:
-                    # Vite not running, fallback to static dist
-                    pass
+                    
+                    # Manual asset mapping to fix Vite module loading on port 8000
+                    # If the browser is asking for modules or vite metadata, it MUST come from port 5173
+                    is_dev_asset = any(path.startswith(prefix) for prefix in ['src/', '@vite/', 'node_modules/', '@id']) or path.endswith(('.jsx', '.js', '.css', '.svg', '.png'))
+                    
+                    with urlopen(target_url, timeout=0.5) as response:
+                        content = response.read()
+                        headers = dict(response.info())
+                        # Enforce correct Content-Type from Vite
+                        return Response(content, response.status, headers.items())
+                except (URLError, Exception):
+                    # Vite not reachable or file missing in dev mode, proceed to production fallback
+                    if is_dev_asset and path:
+                        return jsonify({"error": f"Asset {path} not found on dev server"}), 404
 
             # 2. Production Fallback: Serve from client/dist
             full_path = os.path.join(self.app.static_folder, path)
@@ -392,7 +401,7 @@ class WebUIServer:
             if os.path.exists(index_path):
                 return send_from_directory(self.app.static_folder, 'index.html')
             
-            return f"Error: index.html not found and Vite Dev Server offline.", 500
+            return f"Error: index.html not found. Deployment mismatch.", 500
 
         @self.app.route('/upload', methods=['POST'])
         def upload_file():
@@ -1219,6 +1228,31 @@ class WebUIServer:
         def handle_clear_logs():
             self.socketio.emit('clear_logs')
             self.socketio.emit('log', {'data': '[SYSTEM] Terminal cleared by operator.', 'level': 'INFO'})
+
+        @self.app.route('/api/hexstrike/scans', methods=['GET'])
+        def list_autonomous_reports():
+            """List all generated mission reports"""
+            reports = []
+            try:
+                for file_path in self.scans_dir.glob("*_report.json"):
+                    try:
+                        with open(file_path, 'r') as f:
+                            data = json.load(f)
+                            reports.append({
+                                "id": data.get("task_id", file_path.stem.replace("_report", "")),
+                                "target": data.get("target", "Unknown"),
+                                "timestamp": data.get("started_at"),
+                                "mission_type": data.get("mission_type", "Standard"),
+                                "summary": data.get("summary", "")
+                            })
+                    except Exception as e:
+                        print(f"Error reading report {file_path}: {e}")
+                
+                # Sort by timestamp desc
+                reports.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+                return jsonify(reports)
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
 
         @self.app.route('/api/hexstrike/report/<report_id>', methods=['GET'])
         def get_autonomous_report(report_id):
