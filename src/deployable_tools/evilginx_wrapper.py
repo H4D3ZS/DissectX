@@ -419,8 +419,8 @@ class SpidermanOrchestrator:
         
         # Wait for tunnel if not ready yet (it likely is by now)
         if not self.tunnel.public_url:
-            print("[*] Waiting for Tunnel negotiation...", flush=True)
-            max_retries = 10
+            print("[*] Waiting for Tunnel negotiation (up to 30s)...", flush=True)
+            max_retries = 30
             while not self.tunnel.public_url and max_retries > 0:
                 time.sleep(1)
                 max_retries -= 1

@@ -10,8 +10,13 @@ auth_tokens:
   - domain: "{domain}"
     keys: ["session_id", "auth_token", "SID", "JSESSIONID", ".*"]
 credentials:
-  - {string: "username", type: "username"}
-  - {string: "email", type: "username"}
-  - {string: "password", type: "password"}
+  username:
+    key: "username"
+    search: ".*"
+    type: "post"
+  password:
+    key: "password"
+    search: ".*"
+    type: "post"
 landing_path:
   - "/"
