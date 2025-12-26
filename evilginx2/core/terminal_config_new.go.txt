@@ -1,0 +1,130 @@
+package core
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/kgretzky/evilginx2/log"
+)
+
+func (t *Terminal) handleConfig(args []string) error {
+	pn := len(args)
+	if pn == 0 {
+		autocertOnOff := "off"
+		if t.cfg.IsAutocertEnabled() {
+			autocertOnOff = "on"
+		}
+
+		gophishInsecure := "false"
+		if t.cfg.GetGoPhishInsecureTLS() {
+			gophishInsecure = "true"
+		}
+
+		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "http_port", "dns_port", "unauth_url", "autocert", "gophish admin_url", "gophish api_key", "gophish insecure"}
+		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure}
+		log.Printf("\n%s\n", AsRows(keys, vals))
+		return nil
+	}
+
+	// Normalized parsing for config <key> <val> (pn=2) or config <key> <subkey> <val> (pn=3)
+	switch args[0] {
+	case "domain":
+		if pn == 2 {
+			t.cfg.SetBaseDomain(args[1])
+			t.cfg.ResetAllSites()
+			t.manageCertificates(false)
+			return nil
+		}
+	case "ipv4":
+		if pn == 2 {
+			t.cfg.SetServerExternalIP(args[1])
+			return nil
+		} else if pn == 3 {
+			switch args[1] {
+			case "external":
+				t.cfg.SetServerExternalIP(args[2])
+				return nil
+			case "bind":
+				t.cfg.SetServerBindIP(args[2])
+				return nil
+			}
+		}
+	case "https_port":
+		if pn == 2 {
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetHttpsPort(port)
+			return nil
+		}
+	case "http_port":
+		if pn == 2 {
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetHttpPort(port)
+			return nil
+		}
+	case "dns_port":
+		if pn == 2 {
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetDnsPort(port)
+			return nil
+		}
+	case "unauth_url":
+		if pn == 2 {
+			t.cfg.SetUnauthUrl(args[1])
+			return nil
+		}
+	case "autocert":
+		if pn == 2 {
+			switch strings.ToLower(args[1]) {
+			case "on":
+				t.cfg.EnableAutocert(true)
+				t.manageCertificates(true)
+				return nil
+			case "off":
+				t.cfg.EnableAutocert(false)
+				t.manageCertificates(true)
+				return nil
+			}
+		}
+	case "gophish":
+		if pn == 2 {
+			if args[1] == "test" {
+				t.p.gophish.Setup(t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), t.cfg.GetGoPhishInsecureTLS())
+				err := t.p.gophish.Test()
+				if err != nil {
+					log.Error("gophish: %s", err)
+				} else {
+					log.Success("gophish: connection successful")
+				}
+				return nil
+			}
+		} else if pn == 3 {
+			switch args[1] {
+			case "admin_url":
+				t.cfg.SetGoPhishAdminUrl(args[2])
+				return nil
+			case "api_key":
+				t.cfg.SetGoPhishApiKey(args[2])
+				return nil
+			case "insecure":
+				val, err := strconv.ParseBool(args[2])
+				if err != nil {
+					return err
+				}
+				t.cfg.SetGoPhishInsecureTLS(val)
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("invalid syntax: %v", args)
+}

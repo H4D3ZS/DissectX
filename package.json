@@ -1,0 +1,13 @@
+{
+    "name": "dissectx-wrapper",
+    "version": "1.0.0",
+    "description": "Root wrapper for DissectX frontend commands",
+    "scripts": {
+        "dev": "cd src/web/client && npm run dev",
+        "dev:all": "echo '🛑 Cleaning old sessions...' && (lsof -t -i:8000 | xargs kill -9 2>/dev/null || true) && echo '🚀 Starting DISSECTX INDUSTRY FRAMEWORK...' && (./venv/bin/python main.py --web & cd src/web/client && npm run dev)",
+        "stop": "lsof -t -i:8000 | xargs kill -9 2>/dev/null || echo 'Server stopped.'",
+        "build:serve": "npm run build && ./venv/bin/python main.py --web",
+        "build": "cd src/web/client && npm run build",
+        "preview": "cd src/web/client && npm run preview"
+    }
+}

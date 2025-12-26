@@ -26,6 +26,7 @@
                 <li><a href="/graph">Call Graph</a></li>
                 <li><a href="/recent-scans">Recent Scans</a></li>
                 <li><a href="/exploitation">Exploitation</a></li>
+                <li><a href="/pentest" style="color: #ff4d4d; font-weight: bold;"><i class="fas fa-bug me-1"></i>Pentest</a></li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button"
                         data-bs-toggle="dropdown" aria-expanded="false">
@@ -73,8 +74,59 @@
         </div>
     </footer>
 
+    <!-- Live Log Container -->
+    <div id="live-log-container" class="live-log-container live-log-minimized">
+        <div class="live-log-header" onclick="toggleLog()">
+            <span><i class="fas fa-terminal me-2"></i>HexStrike Live Operations</span>
+            <i class="fas fa-chevron-up" id="log-icon"></i>
+        </div>
+        <div class="live-log-body" id="live-log-body">
+            <div class="log-entry INFO">System initialized. Waiting for commands...</div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Live Log Functionality
+        const socket = io();
+        const logBody = document.getElementById('live-log-body');
+        const logContainer = document.getElementById('live-log-container');
+        const logIcon = document.getElementById('log-icon');
+        let isMinimized = true;
+
+        function toggleLog() {
+            isMinimized = !isMinimized;
+            if (isMinimized) {
+                logContainer.classList.add('live-log-minimized');
+                logIcon.classList.remove('fa-chevron-down');
+                logIcon.classList.add('fa-chevron-up');
+            } else {
+                logContainer.classList.remove('live-log-minimized');
+                logIcon.classList.remove('fa-chevron-up');
+                logIcon.classList.add('fa-chevron-down');
+            }
+        }
+
+        socket.on('connect', () => {
+            addLog('Connected to HexStrike Server', 'INFO');
+        });
+
+        socket.on('log', (data) => {
+            addLog(data.data, data.level);
+            // Auto-expand on important logs if not user-toggled? 
+            // For now, keep user preference
+        });
+
+        function addLog(message, level) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${level}`;
+            entry.textContent = message;
+            logBody.appendChild(entry);
+            logBody.scrollTop = logBody.scrollHeight;
+        }
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 
