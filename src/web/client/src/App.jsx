@@ -4,12 +4,14 @@ import Sidebar from './components/Sidebar';
 import LiveLog from './components/LiveLog';
 import Dashboard from './pages/Dashboard';
 import Pentest from './pages/Pentest';
+import Phisher from './pages/Phisher';
 import NetworkGraph from './pages/NetworkGraph';
 import Decompiler from './pages/Decompiler';
 import Debugger from './pages/Debugger';
 import Settings from './pages/Settings';
 import MobileRev from './pages/MobileRev';
 import Reports from './pages/Reports';
+import socket from './utils/socket';
 import './App.css';
 
 const AppContent = () => {
@@ -48,6 +50,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/pentest" element={<Pentest />} />
+          <Route path="/phisher" element={<Phisher />} />
           <Route path="/network" element={<NetworkGraph />} />
           <Route path="/decompiler" element={<Decompiler />} />
           <Route path="/debugger" element={<Debugger />} />

