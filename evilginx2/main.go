@@ -158,6 +158,10 @@ func main() {
 			}
 			pname := rpname[1]
 			if pname != "" {
+				if _, err := cfg.GetPhishlet(pname); err == nil {
+					log.Debug("phishlet '%s' already loaded, skipping.", pname)
+					continue
+				}
 				pl, err := core.NewPhishlet(pname, filepath.Join(phishlets_path, f.Name()), nil, cfg)
 				if err != nil {
 					log.Error("failed to load phishlet '%s': %v", f.Name(), err)

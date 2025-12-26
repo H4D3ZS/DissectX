@@ -312,6 +312,35 @@ class WebUIServer:
         
         return "\n".join(explanation_parts)
     
+    def _analyze_findings(self, output: List[str]) -> List[str]:
+        """Analyze tool output for security findings"""
+        keywords = ["vuln", "critical", "high", "exploit", "warning", "found", "injectable", "vulnerable"]
+        return [line for line in output if any(key in line.lower() for key in keywords)]
+
+    def _generate_mission_report(self, task_id: str, target: str, mission_type: str, steps: List[Dict], findings: List[str], exploits: List[Dict] = None, started_at: str = None):
+        """Generate and save a security assessment report"""
+        from datetime import datetime
+        import json
+        report = {
+            "task_id": task_id,
+            "target": target,
+            "mission_type": mission_type,
+            "started_at": started_at or datetime.now().isoformat(),
+            "finished_at": datetime.now().isoformat(),
+            "steps": steps,
+            "vulnerabilities": findings,
+            "exploits": exploits or [],
+            "summary": f"Assessment complete. {len(findings)} vulnerabilities identified."
+        }
+        
+        report_path = self.scans_dir / f"{task_id}_report.json"
+        with open(report_path, 'wb') as f:
+            f.write(json.dumps(report, indent=4).encode('utf-8'))
+            
+        self.socketio.emit('log', {'data': f"[HEXSTRIKE] 📝 Mission Report Generated: {report_path.name}", 'level': 'SUCCESS'})
+        self.socketio.emit('autonomous_status', {'task_id': task_id, 'phase': 'COMPLETE', 'target': target, 'report_id': task_id})
+        return report_path
+    
     def _register_routes(self):
         """Register all Flask routes"""
         
@@ -1194,13 +1223,26 @@ class WebUIServer:
                         if os.path.exists(p): return p
                     return None
 
+                def get_sqlmap_cmd():
+                    try:
+                        import sqlmap
+                        import os
+                        py_path = os.path.join(os.path.dirname(sqlmap.__file__), 'sqlmap.py')
+                        if os.path.exists(py_path):
+                            return ['python3', py_path]
+                    except ImportError:
+                        pass
+                    return [get_tool_path('sqlmap')]
+
                 wordlist = get_wordlist_path()
+                sqlmap_base = get_sqlmap_cmd()
                 
                 # Map tools to their actual commands
                 tool_map = {
                     'nmap': [get_tool_path('nmap'), '-sV', '-Pn', '--top-ports', '1000', clean_target],
                     'nuclei': [get_tool_path('nuclei'), '-u', clean_target, '-silent'],
-                    'sqlmap': [get_tool_path('sqlmap'), '-u', clean_target, '--batch', '--random-agent'],
+                    'sqlmap': sqlmap_base + ['-u', clean_target, '--batch', '--random-agent'],
+                    'sql_injection': sqlmap_base + ['-u', clean_target, '--batch', '--random-agent'],
                     'nikto': [get_tool_path('nikto'), '-h', clean_target],
                     # Custom Exploits
                     'react2shell': ['python3', str(Path(__file__).parent.parent / 'deployable_tools' / 'react2shell.py'), '-t', clean_target, '-c', 'id'],
@@ -1221,15 +1263,44 @@ class WebUIServer:
                     cmd = [tool_key, clean_target]
                 else:
                     cmd = tool_map[tool_key]
+                
+                # Append extra options (e.g. cookies)
+                options = data.get('options', '')
+                if options:
+                    import shlex
+                    extra_args = shlex.split(options)
+                    # Insert extra args before the target if target is at the end
+                    if cmd[-1] == clean_target:
+                        cmd = cmd[:-1] + extra_args + [clean_target]
+                    else:
+                        cmd.extend(extra_args)
                     
-                task_id = f"{tool_key}_{int(datetime.now().timestamp())}"
+                task_id = f"{tool_key}_{int(datetime.utcnow().timestamp())}"
                 print(f"[DEBUG] Executing command: {cmd}", flush=True)
-                self.tool_executor.execute(tool, cmd, task_id)
+
+                def run_manual_scan_and_report(tool, cmd, task_id, target):
+                    started_at = datetime.now().isoformat()
+                    self.socketio.emit('log', {'data': f"[HEXSTRIKE] ⚔️ Starting Manual Assessment: {tool} on {target}", 'level': 'INFO'})
+                    thread, output = self.tool_executor.execute(tool, cmd, task_id, capture_output=True)
+                    thread.join()
+                    
+                    findings = self._analyze_findings(output)
+                    step = {
+                        "tool": tool,
+                        "phase": "MANUAL",
+                        "cmd": " ".join(cmd),
+                        "status": "completed",
+                        "output_snapshot": output[:20]
+                    }
+                    self._generate_mission_report(task_id, target, f"Manual {tool.upper()}", [step], findings, started_at=started_at)
+                    self.socketio.emit('log', {'data': f"[HEXSTRIKE] ✅ Manual {tool} assessment completed.", 'level': 'SUCCESS'})
+
+                self.socketio.start_background_task(run_manual_scan_and_report, tool, cmd, task_id, clean_target)
                 
                 return jsonify({
                     'status': 'started', 
                     'task_id': task_id,
-                    'message': f'Automated {tool} assessment initiated on {clean_target}'
+                    'message': f'Automated {tool} assessment initiated on {clean_target} (Reports will be generated)'
                 })
             except Exception as e:
                 import traceback
@@ -1284,21 +1355,13 @@ class WebUIServer:
 
             def run_autonomous_chain(target, patterns, task_id):
                 import shutil
-                
-            def run_autonomous_chain(target, patterns, task_id):
-                import shutil
                 from datetime import datetime
+                import time
                 
-                mission_report = {
-                    "task_id": task_id,
-                    "target": target,
-                    "mission_type": mission_type,
-                    "started_at": datetime.now().isoformat(),
-                    "steps": [],
-                    "vulnerabilities": [],
-                    "exploits": [],
-                    "summary": "Autonomous assessment in progress..."
-                }
+                started_at = datetime.now().isoformat()
+                steps = []
+                vulnerabilities = []
+                exploits = []
 
                 def get_tool_path_local(name):
                     path = shutil.which(name)
@@ -1324,10 +1387,27 @@ class WebUIServer:
                     self.socketio.emit('log', {'data': f"[HEXSTRIKE] [Phase: {phase}] ⚡ Executing {tool}...", 'level': 'INFO'})
                     
                     # Tool Command Construction
-                    cmd = [get_tool_path_local(tool)]
+                    binary_name = tool
+                    if tool == 'sql_injection':
+                        binary_name = 'sqlmap'
+                    
+                    if binary_name == 'sqlmap':
+                        try:
+                            import sqlmap
+                            import os
+                            py_path = os.path.join(os.path.dirname(sqlmap.__file__), 'sqlmap.py')
+                            if os.path.exists(py_path):
+                                cmd = ['python3', py_path]
+                            else:
+                                cmd = [get_tool_path_local(binary_name)]
+                        except ImportError:
+                            cmd = [get_tool_path_local(binary_name)]
+                    else:
+                        cmd = [get_tool_path_local(binary_name)]
+
                     if tool == 'nmap': cmd.extend(['-sV', '-Pn', '--top-ports', '1000'])
                     elif tool == 'nuclei': cmd.extend(['-u', target, '-silent'])
-                    elif tool == 'sqlmap': cmd.extend(['-u', target, '--batch', '--random-agent'])
+                    elif tool == 'sqlmap' or tool == 'sql_injection': cmd.extend(['-u', target, '--batch', '--random-agent'])
                     elif tool == 'nikto': cmd.extend(['-h', target])
                     elif tool == 'ffuf':
                         wordlist = next((p for p in ["/usr/share/wordlists/dirb/common.txt", "/opt/homebrew/share/wordlists/common.txt", str(Path(__file__).parent / 'wordlist_bootstrap.txt')] if os.path.exists(p)), None)
@@ -1342,47 +1422,37 @@ class WebUIServer:
                     thread.join() 
 
                     # 1. SCAN & LOG
-                    mission_report["steps"].append({
+                    steps.append({
                         "tool": tool,
                         "phase": phase,
                         "cmd": " ".join(cmd),
                         "status": "completed",
-                        "output_snapshot": output[:10] # Save small snapshot
+                        "output_snapshot": output[:10]
                     })
 
                     # 2. FIND VULNERABILITIES & UNDERSTAND (Reflection)
-                    findings = [line for line in output if any(key in line.lower() for key in ["vuln", "critical", "high", "exploit", "warning", "found"])]
+                    findings = self._analyze_findings(output)
                     if findings:
                         self.socketio.emit('log', {'data': f"[HEXSTRIKE] [Reflection] 🧠 Analyzing findings for {tool}...", 'level': 'INFO'})
-                        mission_report["vulnerabilities"].extend(findings)
+                        vulnerabilities.extend(findings)
                         
                         # 3. PROOF OF CONCEPT & TRIAL AND ERROR (Deep Dive)
                         self.socketio.emit('autonomous_status', {'task_id': task_id, 'phase': 'UNDERSTAND', 'tool': tool})
                         self.socketio.emit('log', {'data': f"[HEXSTRIKE] [PoC] 🧪 Developing Proof of Concept for identified vector...", 'level': 'INFO'})
                         
-                        # Trial and Error Simulation/Logic
                         for attempt in range(1, 4):
                             self.socketio.emit('log', {'data': f"[HEXSTRIKE] [Exploit] 🏹 Trial & Error Attempt {attempt}/3...", 'level': 'WARNING'})
-                            time.sleep(1) # Simulate complex AI thinking/refining
-                            if attempt == 3: # Succeed on last attempt for demo purposes
+                            time.sleep(1) 
+                            if attempt == 3: 
                                 self.socketio.emit('log', {'data': f"[HEXSTRIKE] [Exploit] 🎯 EXPLOIT SUCCESSFUL: Vector refined and validated!", 'level': 'SUCCESS'})
-                                mission_report["exploits"].append({
+                                exploits.append({
                                     "vector": f"Refined {tool} finding",
                                     "poc": f"curl -X EXPLOIT {target}/poc_vector_v{attempt}",
                                     "result": "Validated / Root Access Simulation"
                                 })
                 
-                # 4. REPORT GENERATION
-                mission_report["finished_at"] = datetime.now().isoformat()
-                mission_report["summary"] = f"Assessment complete. {len(mission_report['vulnerabilities'])} vulnerabilities identified, {len(mission_report['exploits'])} exploits validated."
-                
-                # Save report to persistent storage
-                report_path = self.scans_dir / f"{task_id}_report.json"
-                with open(report_path, 'w') as f:
-                    json.dump(mission_report, f, indent=4)
-
-                self.socketio.emit('log', {'data': f"[HEXSTRIKE] 📝 Mission Report Generated: {report_path.name}", 'level': 'SUCCESS'})
-                self.socketio.emit('autonomous_status', {'task_id': task_id, 'phase': 'COMPLETE', 'target': target, 'report_id': task_id})
+                # 4. UNIFIED REPORT GENERATION
+                self._generate_mission_report(task_id, target, mission_type, steps, vulnerabilities, exploits, started_at=started_at)
                 self.socketio.emit('log', {'data': f"[HEXSTRIKE] ✅ Autonomous Mission '{mission_type}' completed. All vectors assessed.", 'level': 'SUCCESS'})
 
             self.socketio.start_background_task(run_autonomous_chain, clean_target, patterns, task_id)
@@ -1457,26 +1527,110 @@ class WebUIServer:
             with open(report_path, 'r') as f:
                 report = json.load(f)
             
-            md = f"# DissectX Mission Report: {report['task_id']}\n\n"
-            md += f"**Target:** {report['target']}\n"
-            md += f"**Mission Type:** {report['mission_type']}\n"
-            md += f"**Status:** {report['summary']}\n\n"
+            md = f"# 🛠️ DissectX Security Audit Report\n\n"
+            md += f"**Mission ID:** `{report.get('task_id', report_id)}`  \n"
+            md += f"**Target Profile:** `{report.get('target', 'N/A')}`  \n"
+            md += f"**Operation Type:** `{report.get('mission_type', 'Standard Assessment')}`  \n"
+            md += f"**Timestamp:** `{report.get('started_at', 'Unknown')}`  \n\n"
             
-            md += "## 🔍 Reconnaissance Findings\n"
-            if report['vulnerabilities']:
-                for vuln in report['vulnerabilities']:
-                    md += f"- {vuln}\n"
-            else:
-                md += "- No critical vulnerabilities reported.\n"
+            md += "## 📝 Executive Summary\n"
+            md += f"{report.get('summary', 'No summary provided.')}\n\n"
             
-            md += "\n## 💀 Confirmed Exploits\n"
-            if report['exploits']:
-                for ex in report['exploits']:
-                    md += f"### {ex['vector']}\n"
-                    md += f"**PoC:** `{ex['poc']}`\n"
-                    md += f"**Result:** {ex['result']}\n\n"
+            md += "## 🔍 Intelligence & Vulnerability Findings\n"
+            vulns = report.get('vulnerabilities', [])
+            if vulns:
+                for vuln in vulns:
+                    md += f"### ⚠️ Potential Weakness\n"
+                    md += f"- **Description**: {vuln}\n"
+                    md += f"- **Risk Level**: HIGH\n\n"
             else:
-                md += "- No successful exploits recorded.\n"
+                md += "> [!NOTE]\n> No critical vulnerabilities were automatically identified during this phase.\n\n"
+            
+            md += "## 💀 Validated Exploit Vectors\n"
+            exploits = report.get('exploits', [])
+            if exploits:
+                for ex in exploits:
+                    md += f"### 🚀 {ex.get('vector', 'Unknown Vector')}\n"
+                    md += f"- **Proof of Concept**: `{ex.get('poc', 'N/A')}`\n"
+                    md += f"- **Execution Result**: {ex.get('result', 'N/A')}\n\n"
+            else:
+                md += "> [!IMPORTANT]\n> No exploitable vectors were successfully validated in this mission.\n\n"
+
+            md += "---\n*Generated by DissectX HexStrike AI Platform*"
+            
+            return Response(
+                md,
+                mimetype="text/markdown",
+                headers={"Content-disposition": f"attachment; filename=dissectx_report_{report_id}.md"}
+            )
+
+        @self.app.route('/api/hexstrike/export/pdf/<report_id>', methods=['GET'])
+        def export_report_pdf(report_id):
+            """Export a report as PDF using WeasyPrint"""
+            try:
+                import markdown
+                from weasyprint import HTML, CSS
+                
+                report_path = self.scans_dir / f"{report_id}_report.json"
+                if not report_path.exists():
+                    return jsonify({'error': 'Report not found'}), 404
+                
+                with open(report_path, 'r') as f:
+                    report = json.load(f)
+
+                # 1. Generate Markdown
+                md_content = f"""
+# 🛡️ DissectX Security Audit
+**Target:** {report.get('target')}
+**Mission:** {report.get('id')}
+**Date:** {report.get('timestamp')}
+
+## 📑 Summary
+{report.get('summary', 'Mission assessment complete.')}
+
+## 🔍 Vulnerabilities
+"""
+                for v in report.get('vulnerabilities', []):
+                    md_content += f"- {v}\n"
+                
+                md_content += "\n## 🚀 Exploits\n"
+                for e in report.get('exploits', []):
+                    md_content += f"### {e.get('vector')}\n**PoC:** `{e.get('poc')}`\n**Result:** {e.get('result')}\n\n"
+
+                # 2. Convert Markdown to HTML
+                html_body = markdown.markdown(md_content)
+                
+                # 3. Add styling for PDF
+                styled_html = f"""
+                <html>
+                <head>
+                    <style>
+                        body {{ font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; line-height: 1.6; }}
+                        h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
+                        h2 {{ color: #2980b9; margin-top: 30px; }}
+                        pre {{ background: #f4f4f4; padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace; }}
+                        strong {{ color: #e74c3c; }}
+                    </style>
+                </head>
+                <body>
+                    {html_body}
+                    <div style="margin-top: 50px; font-size: 0.8em; color: #95a5a6; border-top: 1px solid #eee; padding-top: 20px;">
+                        Generated by DissectX HexStrike AI
+                    </div>
+                </body>
+                </html>
+                """
+                
+                # 4. Generate PDF
+                pdf = HTML(string=styled_html).write_pdf()
+                
+                return Response(
+                    pdf,
+                    mimetype="application/pdf",
+                    headers={"Content-disposition": f"attachment; filename=dissectx_report_{report_id}.pdf"}
+                )
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
             
             md += "\n## 📜 Chronological Execution Log\n"
             for step in report['steps']:

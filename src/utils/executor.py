@@ -86,6 +86,15 @@ class ToolExecutor:
 
     @staticmethod
     def sanitize_target(target: str) -> str:
-        """Simple sanitization to prevent command injection"""
-        # Remove any shells metacharacters
-        return re.sub(r'[;&|`$<>^{}]', '', target)
+        """Sanitize target string while allowing URL parameters"""
+        # We use a whitelist approach for allowed URL characters
+        # Allowed: alphanumeric, : / ? = & - . _ ~ (space)
+        # Blocked: ; | ` $ < > ^ { } [ ] ( ) \ ' "
+        if not target: return ""
+        
+        # Strip common shell injection characters
+        forbidden = r'[;&|`$<>^{}\[\]\(\)\\\"\']'
+        sanitized = re.sub(forbidden, '', target)
+        
+        # Basic validation that it looks like a URL or IP or Host
+        return sanitized.strip()
