@@ -181,6 +181,8 @@ func (t *Terminal) DoWork() {
 
 func (t *Terminal) handleConfig(args []string) error {
 	pn := len(args)
+	log.Info("DEBUG: handleConfig called with %d args: %v", pn, args)
+
 	if pn == 0 {
 		autocertOnOff := "off"
 		if t.cfg.IsAutocertEnabled() {
@@ -192,31 +194,72 @@ func (t *Terminal) handleConfig(args []string) error {
 			gophishInsecure = "true"
 		}
 
-		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "gophish admin_url", "gophish api_key", "gophish insecure"}
-		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure}
+		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "http_port", "dns_port", "unauth_url", "autocert", "gophish admin_url", "gophish api_key", "gophish insecure"}
+		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.HttpPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
-	} else if pn == 2 {
-		switch args[0] {
-		case "domain":
+	}
+
+	key := strings.ToLower(args[0])
+	switch key {
+	case "domain":
+		if pn >= 2 {
 			t.cfg.SetBaseDomain(args[1])
 			t.cfg.ResetAllSites()
 			t.manageCertificates(false)
 			return nil
-		case "ipv4":
+		}
+	case "ipv4":
+		if pn == 2 {
 			t.cfg.SetServerExternalIP(args[1])
 			return nil
-		case "unauth_url":
-			if len(args[1]) > 0 {
-				_, err := url.ParseRequestURI(args[1])
-				if err != nil {
-					return err
-				}
+		} else if pn >= 3 {
+			switch strings.ToLower(args[1]) {
+			case "external":
+				t.cfg.SetServerExternalIP(args[2])
+				return nil
+			case "bind":
+				t.cfg.SetServerBindIP(args[2])
+				return nil
 			}
+		}
+	case "https_port":
+		if pn >= 2 {
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetHttpsPort(port)
+			log.Info("https_port set to: %d", port)
+			return nil
+		}
+	case "http_port":
+		if pn >= 2 {
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetHttpPort(port)
+			log.Info("http_port set to: %d", port)
+			return nil
+		}
+	case "dns_port":
+		if pn >= 2 {
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetDnsPort(port)
+			return nil
+		}
+	case "unauth_url":
+		if pn >= 2 {
 			t.cfg.SetUnauthUrl(args[1])
 			return nil
-		case "autocert":
-			switch args[1] {
+		}
+	case "autocert":
+		if pn >= 2 {
+			switch strings.ToLower(args[1]) {
 			case "on":
 				t.cfg.EnableAutocert(true)
 				t.manageCertificates(true)
@@ -226,9 +269,11 @@ func (t *Terminal) handleConfig(args []string) error {
 				t.manageCertificates(true)
 				return nil
 			}
-		case "gophish":
-			switch args[1] {
-			case "test":
+		}
+	case "gophish":
+		if pn >= 2 {
+			sub := strings.ToLower(args[1])
+			if sub == "test" {
 				t.p.gophish.Setup(t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), t.cfg.GetGoPhishInsecureTLS())
 				err := t.p.gophish.Test()
 				if err != nil {
@@ -238,39 +283,27 @@ func (t *Terminal) handleConfig(args []string) error {
 				}
 				return nil
 			}
-		}
-	} else if pn == 3 {
-		switch args[0] {
-		case "ipv4":
-			switch args[1] {
-			case "external":
-				t.cfg.SetServerExternalIP(args[2])
-				return nil
-			case "bind":
-				t.cfg.SetServerBindIP(args[2])
-				return nil
-			}
-		case "gophish":
-			switch args[1] {
-			case "admin_url":
-				t.cfg.SetGoPhishAdminUrl(args[2])
-				return nil
-			case "api_key":
-				t.cfg.SetGoPhishApiKey(args[2])
-				return nil
-			case "insecure":
-				switch args[2] {
-				case "true":
-					t.cfg.SetGoPhishInsecureTLS(true)
+			if pn >= 3 {
+				switch sub {
+				case "admin_url":
+					t.cfg.SetGoPhishAdminUrl(args[2])
 					return nil
-				case "false":
-					t.cfg.SetGoPhishInsecureTLS(false)
+				case "api_key":
+					t.cfg.SetGoPhishApiKey(args[2])
+					return nil
+				case "insecure":
+					val, err := strconv.ParseBool(args[2])
+					if err != nil {
+						return err
+					}
+					t.cfg.SetGoPhishInsecureTLS(val)
 					return nil
 				}
 			}
 		}
 	}
-	return fmt.Errorf("invalid syntax: %s", args)
+
+	return fmt.Errorf("invalid syntax (switch fallthrough): %v", args)
 }
 
 func (t *Terminal) handleBlacklist(args []string) error {

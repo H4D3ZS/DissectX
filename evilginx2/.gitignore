@@ -3,3 +3,5 @@ build/
 private/
 /phishlets
 !/phishlets/example.yaml
+/config/
+/phishlets_backup/
