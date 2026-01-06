@@ -51,7 +51,7 @@ packaging==23.2
 six==1.16.0
 bcrypt==4.1.2
 cryptography==41.0.7
-pynacl==1.5.0
+pynacl==1.6.2
 
 # Advanced exploitation dependencies
 ROPgadget>=7.4  # ROP gadget finding
